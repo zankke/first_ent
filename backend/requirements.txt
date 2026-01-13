@@ -1,0 +1,39 @@
+# Essential & core dependencies (sorted, deduped, with strict pinning if needed)
+aioredis==2.0.1              # Async Redis
+bcrypt
+cryptography
+fastapi==0.109.0             # FastAPI 프레임워크
+Flask
+Flask-Cors
+Flask-Migrate
+Flask-SQLAlchemy
+httpx==0.26.0                # HTTP 클라이언트 (테스트용)
+instaloader
+konlpy
+markdown
+matplotlib
+mysql-connector-python==8.2.0    # MySQL 커넥터 (대체 옵션)
+pdf2image
+Pillow
+pydantic==2.5.3              # 데이터 검증
+PyJWT                        # Supabase 토큰 검증용
+PyMySQL
+python-dotenv==1.0.0         # 환경변수 관리
+python-logging-loki==0.3.1   # Loki 로깅 (선택)
+pytest==7.4.3                # 테스트 프레임워크
+pytest-asyncio==0.23.2       # Async 테스트 지원
+redis==5.0.1                 # Redis 캐시
+reportlab
+requests==2.31.0             # HTTP 요청 라이브러리
+schedule
+scikit-learn
+selenium
+serpapi
+SQLAlchemy
+streamlit
+streamlit_antd_components
+uvicorn==0.27.0              # ASGI 서버
+weasyprint
+Werkzeug
+wordcloud
+wikipedia

@@ -1,0 +1,187 @@
+/* Base Styles & Page Setup (based on Overall Layout & Structure) */
+@page {
+    size: A4; /* Assuming A4 portrait */
+    margin: 2.54cm 1.9cm; /* ~1 inch top/bottom, ~0.75 inch left/right */
+
+    @top-left {
+        content: "{{ header_text_left }}"; /* Placeholder for header left content */
+        font-family: 'Helvetica', 'Arial', sans-serif;
+        font-size: 9pt;
+        color: #666666;
+    }
+    @top-right {
+        content: "{{ header_text_right }}"; /* Placeholder for header right content */
+        font-family: 'Helvetica', 'Arial', sans-serif;
+        font-size: 9pt;
+        color: #666666;
+    }
+    @bottom-center {
+        content: counter(page); /* Page number */
+        font-family: 'Georgia', 'Times New Roman', serif;
+        font-size: 9pt;
+        color: #333333;
+    }
+}
+
+/* Body and Root Styles */
+html, body {
+    font-family: 'Georgia', 'Times New Roman', serif; /* Body text: Serif */
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #333333; /* Primary text color: Dark gray */
+    background-color: #FFFFFF; /* Page background: White */
+    margin: 0;
+    padding: 0;
+}
+
+.report-container {
+    width: 100%; /* Adapts to @page size */
+    box-sizing: border-box;
+}
+
+/* Cover Page Styles */
+.cover-page {
+    text-align: center;
+    page-break-after: always; /* Ensure cover is on its own page */
+    padding-top: 5cm; /* Center content vertically */
+}
+
+.cover-logo {
+    max-width: 200px;
+    margin-bottom: 2cm;
+}
+
+.cover-page h1 {
+    font-family: 'Helvetica', 'Arial', sans-serif; /* Headings: Sans-serif */
+    font-size: 28pt;
+    color: #000000;
+    margin-bottom: 0.5cm;
+}
+
+.cover-page h2 {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 18pt;
+    color: #333333;
+    margin-bottom: 1cm;
+}
+
+.cover-page .date, .cover-page .author {
+    font-size: 12pt;
+    color: #666666;
+}
+
+/* Page Header & Footer (for non-cover pages, adjusted by @page rules) */
+.page-header, .page-footer {
+    display: none; /* Controlled by @page rules for print */
+}
+
+/* Content Typography (based on Typography analysis) */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Helvetica', 'Arial', sans-serif; /* Headings: Sans-serif */
+    color: #000000; /* Black for major headings */
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    line-height: 1.2;
+}
+
+h1 { font-size: 20pt; font-weight: bold; }
+h2 { font-size: 16pt; font-weight: bold; }
+h3 { font-size: 14pt; font-weight: bold; }
+h4 { font-size: 12pt; font-weight: bold; }
+/* Body text handled by html, body selector */
+
+p {
+    margin-bottom: 1em;
+    text-align: justify; /* Body text: Justified */
+}
+
+a {
+    color: #0000CC; /* Hyperlinks: Blue */
+    text-decoration: underline;
+}
+
+strong { font-weight: bold; }
+em { font-style: italic; }
+
+/* Lists */
+ul, ol {
+    margin-left: 1.5em;
+    margin-bottom: 1em;
+}
+ul li { list-style-type: disc; }
+ol li { list-style-type: decimal; }
+
+/* Tables (based on Design Patterns & Components) */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1em;
+    border: 1px solid #DDDDDD; /* Light gray border for table */
+}
+th, td {
+    padding: 8px;
+    border: 1px solid #EEEEEE; /* Lighter border for cells */
+    text-align: left;
+}
+th {
+    background-color: #F0F0F0; /* Light gray background for table headers */
+    font-weight: bold;
+    color: #333333;
+}
+tr:nth-child(even) {
+    background-color: #F9F9F9; /* Subtle alternating row background */
+}
+
+/* Call-out Boxes / Highlighted Sections */
+.callout-box {
+    background-color: #F5F5F5; /* Very light gray background */
+    border: 1px solid #CCCCCC; /* Light border */
+    padding: 1em;
+    margin: 1.5em 0;
+    font-size: 10pt;
+    line-height: 1.4;
+}
+
+/* Images & Figures (placeholders) */
+figure {
+    margin: 1.5em 0;
+    text-align: center;
+}
+figure img {
+    max-width: 100%;
+    height: auto;
+}
+figure figcaption {
+    font-size: 9pt;
+    color: #666666;
+    margin-top: 0.5em;
+}
+
+/* Print Specific Adjustments */
+@media print {
+    /* Ensure colors are not inverted if user has dark mode or similar settings */
+    html, body {
+        color: #333333 !important;
+        background-color: #FFFFFF !important;
+        -webkit-print-color-adjust: exact; /* For webkit browsers */
+        print-color-adjust: exact; /* Standard */
+    }
+
+    /* Hide elements not meant for print (if any) */
+}
+
+/* Placeholder for custom fonts if needed (e.g., @font-face) */
+/* Example for NanumGothic from backend/fonts directory: */
+@font-face {
+    font-family: 'NanumGothic';
+    src: url('../../fonts/NanumGothic-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'NanumGothic';
+    src: url('../../fonts/NanumGothic-Bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+/* This custom font might be used for specific elements, e.g., Korean text */

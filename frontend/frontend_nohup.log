@@ -1,0 +1,21 @@
+
+> artist-management-frontend@0.0.0 dev
+> vite --port    ⚙️  npm run dev 서비스 포트 3002 확인 중...
+   ✅ 포트 3002 (으)로 시작합니다.
+3002
+
+Port    ⚙️  npm run dev 서비스 포트 3002 확인 중...
+   ✅ 포트 3002 (으)로 시작합니다.
+3002 is in use, trying another one...
+node:net:2091
+    validatePort(options.port, 'options.port');
+    ^
+
+RangeError [ERR_SOCKET_BAD_PORT]: options.port should be >= 0 and < 65536. Received type number (NaN).
+    at Server.listen (node:net:2091:5)
+    at httpServer.listen (file:///Users/itsme/Documents/work/first_ent/v2/frontend/node_modules/vite/dist/node/chunks/dep-827b23df.js:65658:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'ERR_SOCKET_BAD_PORT'
+}
+
+Node.js v22.21.1

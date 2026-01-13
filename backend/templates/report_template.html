@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report_title }}</title>
+    <link rel="stylesheet" href="{{ css_path }}">
+</head>
+<body>
+    <div class="report-container">
+        <!-- Cover Page (optional, conditional) -->
+        {% if cover_page %}
+        <div class="cover-page">
+            <img src="{{ logo_path }}" alt="Company Logo" class="cover-logo">
+            <h1>{{ report_title }}</h1>
+            <h2>Artist Report: {{ artist_name }}</h2>
+            <p class="date">{{ generation_date }}</p>
+            <p class="author">{{ author_name }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Main Content Pages -->
+        {% for page in pages %}
+        <div class="page">
+            <header class="page-header">
+                <span class="header-title">{{ header_text }}</span>
+                <span class="header-logo">{% if small_logo_path %}<img src="{{ small_logo_path }}" alt="Logo">{% endif %}</span>
+            </header>
+            <main class="page-content">
+                {{ page.content | safe }} {# Dynamic content for each page #}
+            </main>
+            <footer class="page-footer">
+                <span class="footer-text">{{ footer_text }}</span>
+                <span class="page-number">{{ page.number }}</span>
+            </footer>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
