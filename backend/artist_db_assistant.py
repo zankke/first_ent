@@ -16,7 +16,7 @@ def artist_exists_in_db(artist_name: str) -> bool:
 
 def _clean_text(text: str) -> str:
     """Cleans text by removing reference brackets like [1], [2]."""
-    return re.sub(r'\[\d+\]', '', text).strip()
+    return re.sub(r'\\[d+\\]', '', text).strip()
 
 def extract_artist_info_from_wikipedia(artist_name: str) -> dict:
     """
@@ -129,7 +129,7 @@ def extract_artist_info_from_wikipedia(artist_name: str) -> dict:
         content = page.content
 
         # Birth Date
-        # Regex to capture date in YYYY년 M월 D일 or YYYY-MM-DD format
+        # Regex to capture date in YYYY년 M월 D일 or YYYY-MM-DD format from content
         birth_date_match = re.search(r'(생년월일|출생|출생일)\s*[:=]?\s*(\d{4}년\s*\d{1,2}월\s*\d{1,2}일|\d{4}[년\s\-](\d{1,2})[월\s\-](\d{1,2})일?|\d{4}-\d{1,2}-\d{1,2})', content)
         if birth_date_match:
             date_str = birth_date_match.group(2)
@@ -145,6 +145,21 @@ def extract_artist_info_from_wikipedia(artist_name: str) -> dict:
             except ValueError:
                 pass
         
+        if not info['birth_date']: # Try from wiki_summary if not found in content
+            birth_date_summary_match = re.search(r'(\d{4}년\s*\d{1,2}월\s*\d{1,2}일|\d{4}[년\s\-](\d{1,2})[월\s\-](\d{1,2})일?|\d{4}-\d{1,2}-\d{1,2})', info['wiki_summary'])
+            if birth_date_summary_match:
+                date_str = birth_date_summary_match.group(1)
+                date_str = date_str.replace('년', '-').replace('월', '-').replace('일', '').replace(' ', '').strip()
+                try:
+                    if re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', date_str):
+                        info['birth_date'] = datetime.datetime.strptime(date_str, '%Y-%m-%d').strftime('%Y-%m-%d')
+                    elif re.match(r'^\d{4}-\d{1,2}$', date_str):
+                        info['birth_date'] = datetime.datetime.strptime(date_str + '-01', '%Y-%m-%d').strftime('%Y-%m-%d')
+                    elif re.match(r'^\d{4}$', date_str):
+                        info['birth_date'] = datetime.datetime.strptime(date_str + '-01-01', '%Y-%m-%d').strftime('%Y-%m-%d')
+                except ValueError:
+                    pass
+
         # Height
         # Regex to capture height in cm, e.g., "161.8 cm"
         height_match = re.search(r'(신장|키)\s*[:=]?\s*(\d{2,3}(?:\.\d+)?)\s*cm', content)
@@ -156,7 +171,7 @@ def extract_artist_info_from_wikipedia(artist_name: str) -> dict:
 
         # Debut Date and Title
         # Regex to capture: (데뷔|활동 시작일)\s*:\s*(DATE)\s*(?:로)?\s*(?:[ARTIST_NAME]의)?\s*(TITLE)?\s*(?:데뷔|활동)?
-        debut_match = re.search(r'(데뷔|활동 시작일)\s*:\s*((\d{4}년\s*\d{1,2}월\s*\d{1,2}일|\d{4}-\d{1,2}-\d{1,2}))(?:\\\[d+\\\])?(?:로\s*(?:' + re.escape(artist_name) + r')?\s*(?:의\s*)?([^\n,.]+)?(?:데뷔|활동))?', content)
+        debut_match = re.search(r'(데뷔|활동 시작일)\s*:\s*((\d{4}년\s*\d{1,2}월\s*\d{1,2}일|\d{4}-\d{1,2}-\d{1,2}))(?:\\[d+\\])?(?:로\s*(?:' + re.escape(artist_name) + r')?\s*(?:의\s*)?([^\n,.]+)?(?:데뷔|활동))?', content)
         if debut_match:
             date_str = debut_match.group(2).replace('년', '-').replace('월', '-').replace('일', '').replace(' ', '')
             try:
@@ -182,6 +197,14 @@ def extract_artist_info_from_wikipedia(artist_name: str) -> dict:
             info['nationality'] = _clean_text(nationality_match.group(2).split(',')[0])
             if '대한민국' not in info['nationality'] and 'South Korea' not in info['nationality'] and info['nationality'] is not None:
                 info['is_korean'] = 0 # Set to 0 if nationality is explicitly not Korean and not None
+        
+        if not info['nationality']: # Try from wiki_summary if not found in content
+            # This regex will look for patterns like "한국계 미국인" (Korean-American) or "국적: 미국"
+            nationality_summary_match = re.search(r'(국적|국가|출신|계)\s*[:=]?\s*([^\n,]+)', info['wiki_summary'])
+            if nationality_summary_match:
+                info['nationality'] = _clean_text(nationality_summary_match.group(2).split(',')[0])
+                if '대한민국' not in info['nationality'] and 'South Korea' not in info['nationality'] and info['nationality'] is not None:
+                    info['is_korean'] = 0
 
         # Gender (simple heuristic for Korean names - might need refinement)
         if '성별' in content:
@@ -232,13 +255,13 @@ def generate_sql_query(artist_name: str) -> str:
             sql_values[key] = 'NULL'
         elif isinstance(value, str):
             # Escape single quotes by replacing ' with ''
-            sql_values[key] = f"{SINGLE_QUOTE}{value.replace(SINGLE_QUOTE, DOUBLE_SINGLE_QUOTE)}{SINGLE_QUOTE}"
+            sql_values[key] = f"{SINGLE_QUOTE}{value.replace(SINGLE_QUOTE, DOUBLE_SINGLE_QUOTE)}{DOUBLE_SINGLE_QUOTE}"
         else:
             sql_values[key] = str(value)
     print("sql_values before update/insert:", sql_values)
     
     # Check if artist exists to determine INSERT or UPDATE
-    clean_artist_name = artist_data['name'].strip("'") if artist_data['name'] else artist_name
+    clean_artist_name = artist_data['name'].strip("'" ) if artist_data['name'] else artist_name
     if artist_exists_in_db(clean_artist_name):
         # Generate UPDATE query
         update_fields = []
