@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from backend.app import db
+from ..app import db
 from backend.models import Account
 from backend.utils.auth import require_auth, require_role
 from datetime import datetime
@@ -46,19 +46,49 @@ def create_account():
     """새 계정 생성"""
     data = request.get_json()
     
-    # 중복 확인
-    if Account.query.filter_by(uid=data['username']).first():
-        return jsonify({'error': '이미 존재하는 사용자명입니다.'}), 400
+    # 1. 필수 필드 유효성 검사
+    required_fields = ['uid', 'uemail', 'password', 'level', 'uname']
+    for field in required_fields:
+        if field not in data or not data[field]:
+            return jsonify({'error': f'{field} 필드는 필수입니다.'}), 400
     
-    if Account.query.filter_by(uemail=data['email']).first():
+    uid = data['uid']
+    uemail = data['uemail']
+    password = data['password']
+    level = data['level']
+    uname = data['uname']
+
+    # 2. 이메일 형식 유효성 검사
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", uemail):
+        return jsonify({'error': '유효하지 않은 이메일 형식입니다.'}), 400
+
+    # 3. 비밀번호 길이 유효성 검사 (최소 8자)
+    if len(password) < 8:
+        return jsonify({'error': '비밀번호는 최소 8자 이상이어야 합니다.'}), 400
+
+    # 4. 역할(level) 유효성 검사
+    allowed_levels = ['admin', 'manager', 'viewer']
+    if level not in allowed_levels:
+        return jsonify({'error': f"유효하지 않은 역할입니다. 허용되는 역할: {', '.join(allowed_levels)}"}), 400
+
+    # 5. 중복 확인
+    if Account.query.filter_by(uid=uid).first():
+        return jsonify({'error': '이미 존재하는 사용자명(UID)입니다.'}), 400
+    
+    if Account.query.filter_by(uemail=uemail).first():
         return jsonify({'error': '이미 존재하는 이메일입니다.'}), 400
+
+    if Account.query.filter_by(uname=uname).first():
+        return jsonify({'error': '이미 존재하는 이름(UNAME)입니다.'}), 400 # Added check for uname
     
     account = Account(
-        uid=data['username'],
-        uemail=data['email'],
-        level=data.get('role', 'viewer')
+        uid=uid,
+        uemail=uemail,
+        level=level,
+        uname=uname, # Assign uname
+        status='Y' # Default status to active
     )
-    account.set_password(data['password'])
+    account.set_password(password) # set_password handles hashing
     
     db.session.add(account)
     db.session.commit()

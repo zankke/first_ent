@@ -33,24 +33,24 @@ class NewsCrawler:
             logger.error("SERP API 키를 찾을 수 없습니다.")
             return []
         
-        from serpapi.client import SerpAPI
+        from serpapi import GoogleSearch
 
         # 검색 쿼리 구성
-        query = f"{artist.name} 뉴스"
+        query = f"{artist.name}"
         
         params = {
             "api_key": api_key,
             "engine": "google",
             "q": query,
-            "tbm": "nws",  # News tab
-            "num": 10,     # Number of results to fetch
-            "gl": "us",    # Country to search from (e.g., "us" for United States)
-            "hl": "en"     # Language of the search (e.g., "en" for English)
+            "tbm": "nws",
+            "gl": "kr",
+            "hl": "ko",
+            "num": 10
         }
 
         try:
-            client = SerpAPI(api_key=api_key)
-            results = client.search(params=params)
+            search = GoogleSearch(params)
+            results = search.get_dict()
             
             if "news_results" in results:
                 return self._parse_serpapi_response(results['news_results'], artist)

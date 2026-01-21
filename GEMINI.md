@@ -14,7 +14,7 @@ This project is an internal system designed to register, manage, and view inform
 ## Architecture:
 *   **Frontend**: Streamlit, streamlit_antd_components, TailwindCSS, Bootstrap
 *   **Backend**: Python, Streamlit, streamlit_antd_components
-*   **Database**: MySQL (Docker container, port 3307, database name: `first_ent`)
+*   **Database**: MySQL (Docker container, container name 'mysql-dev' port 3306, database name: `first_ent`)
 *   **Development Environment**: MacOS M2 PRO (ARM)
 
 ## Database Schema:

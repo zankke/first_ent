@@ -9,7 +9,8 @@ import {
   Settings,
   Sparkles,
   Newspaper,
-  LogIn, LogOut
+  LogIn, LogOut,
+  Search // Added Search icon
 } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
 
@@ -26,8 +27,9 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/artists', icon: Users, label: '아티스트 관리' },
+    { path: '/search-artist', icon: Search, label: '아티스트 검색' }, // Added new menu item
     { path: '/news', icon: Newspaper, label: '뉴스 모니터링' },
-    { path: '/channels', icon: Radio, label: '채널 관리' },
+    // { path: '/channels', icon: Radio, label: '채널 관리' },
     { path: '/accounts', icon: UserCheck, label: '계정 관리' },
     { path: '/boards', icon: MessageSquare, label: '게시판 관리' },
     { path: '/settings', icon: Settings, label: '설정' },
@@ -40,7 +42,7 @@ const Sidebar = () => {
           <Sparkles className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-white">First Ent</h1>
+          <h1 className="text-xl font-bold text-white">theProjectCompany</h1>
           <p className="text-sm text-gray-400">Artist Management</p>
         </div>
       </Link>

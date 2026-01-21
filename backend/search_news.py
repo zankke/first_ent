@@ -1,9 +1,8 @@
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from dotenv import load_dotenv
-# from serpapi import GoogleSearch
-from serpapi.client import GoogleSearch
+from serpapi import GoogleSearch
 
 import pandas as pd
 
@@ -15,6 +14,7 @@ except Exception:
 
 load_dotenv()
 SERP_API_KEY = os.getenv("SERPAPI_API_KEY") or os.getenv("SERP_API_KEY")
+
 
 def _parse_date(s: str):
     """Parse SerpAPI news 'date' which may be absolute or relative."""
@@ -32,11 +32,8 @@ def _parse_date(s: str):
             return dt2
     return pd.NaT
 
+
 def search_news_serpapi(query: str, max_retries: int = 3) -> pd.DataFrame:
-  
-    load_dotenv()
-    SERP_API_KEY = os.getenv("SERPAPI_API_KEY") or os.getenv("SERP_API_KEY")
-  
     if not SERP_API_KEY:
         raise RuntimeError("SERPAPI_API_KEY environment variable is not set.")
 
@@ -61,24 +58,21 @@ def search_news_serpapi(query: str, max_retries: int = 3) -> pd.DataFrame:
                 print("뉴스 결과를 찾을 수 없습니다.")
                 return pd.DataFrame()
             else:
-                for news in news_results[:10]:
-                    print(news.get('source', '출처 없음'))
-                break  # 성공하면 루프 종료
+                print(f"✓ {len(news_results)}개의 뉴스 발견")
+                break
         except Exception as e:
             last_error = e
             print(f"SerpAPI 요청 시도 {attempt + 1} 실패: {e}")
             print(f"에러 타입: {type(e).__name__}")
-            print(f"에러 메시지: {str(e)}")
             
             if attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 2  # 점진적으로 대기 시간 증가
+                wait_time = (attempt + 1) * 2
                 print(f"{wait_time}초 후 재시도...")
                 time.sleep(wait_time)
             else:
                 print("최대 재시도 횟수에 도달했습니다.")
                 raise RuntimeError(f"SerpAPI request failed after {max_retries} attempts: {last_error}")
 
-    # results가 None인 경우를 방지
     if results is None:
         print("API 응답을 받지 못했습니다.")
         return pd.DataFrame()
@@ -88,13 +82,22 @@ def search_news_serpapi(query: str, max_retries: int = 3) -> pd.DataFrame:
         print("뉴스 결과를 찾을 수 없습니다.")
         return pd.DataFrame()
 
-    # Normalize into DataFrame safely
-    df = pd.DataFrame(news)
-
     processed_news = []
     for item in news:
-        thumbnail = item.get("thumbnail", {}).get("url", "N/A")
-        source = item.get("source", "N/A")
+        # ✅ 안전한 thumbnail 처리
+        thumbnail_data = item.get("thumbnail", "N/A")
+        if isinstance(thumbnail_data, dict):
+            thumbnail = thumbnail_data.get("url", "N/A")
+        else:
+            thumbnail = thumbnail_data if thumbnail_data else "N/A"
+        
+        # ✅ 안전한 source 처리
+        source_data = item.get("source", "N/A")
+        if isinstance(source_data, dict):
+            source = source_data.get("name", "N/A")
+        else:
+            source = source_data if source_data else "N/A"
+        
         title = item.get("title", "N/A")
         snippet = item.get("snippet", "본문 요약 없음")
         MAX_CHARS = 150
@@ -107,76 +110,83 @@ def search_news_serpapi(query: str, max_retries: int = 3) -> pd.DataFrame:
             "title": title,
             "snippet": trimmed_snippet,
             "link": link,
-            "date": item.get("date", "N/A") # Keep date for sorting/display
+            "date": item.get("date", "N/A")
         })
     
     df = pd.DataFrame(processed_news)
     df = df.reset_index(drop=True)
+    print(f"✓ {len(df)}개의 뉴스 처리 완료")
     return df
 
+
 def search_news_ui():
-  import streamlit as st
-  import functions as fns
-  
-  st.subheader(":material/search: Google News 검색", divider=True)
-  
-  df = pd.DataFrame()
-  with st.container(border=True):
-    r = st.columns([1.5,2,1], gap="small")
-    sample_query = "캐치티니핑+케데헌+주가"
-    r[0].caption(":material/search: 검색어 입력\n( 예 : {sample_query} )")
-    use_sample = r[0].checkbox(f"샘플 검색어 사용\n(예:{sample_query})", value=False)
-    if use_sample:
-      query_kwd = r[1].text_input("검색어를 입력해 주세요(예:{sample_query})", value=sample_query, label_visibility="collapsed")
-    else:
-      query_kwd = r[1].text_input("검색어를 입력해 주세요(예:{sample_query})", placeholder=sample_query, label_visibility="collapsed")
+    import streamlit as st
+    import functions as fns
+    
+    st.subheader(":material/search: Google News 검색", divider=True)
+    
+    df = pd.DataFrame()
+    with st.container(border=True):
+        r = st.columns([1.5, 2, 1], gap="small")
+        sample_query = "캐치티니핑+케데헌+주가"
+        r[0].caption(f":material/search: 검색어 입력\n( 예 : {sample_query} )")
+        use_sample = r[0].checkbox(f"샘플 검색어 사용\n(예:{sample_query})", value=False)
+        if use_sample:
+            query_kwd = r[1].text_input(f"검색어를 입력해 주세요(예:{sample_query})", value=sample_query, label_visibility="collapsed")
+        else:
+            query_kwd = r[1].text_input(f"검색어를 입력해 주세요(예:{sample_query})", placeholder=sample_query, label_visibility="collapsed")
 
-    submit = r[2].button("Start Search", type="primary", icon=":material/search:", use_container_width=True)
-    
-    if submit:
-      if use_sample:
-        query_kwd = "캐치티니핑+케데헌+주가"
-      if not query_kwd:
-        st.error("검색어를 입력해 주세요.")
-        st.stop()
-      with st.spinner(":blue[:material/automation: [AI Report] Google News 검색 중...]"):
-        df = search_news_serpapi(query_kwd)
-    
-    if not df.empty:
-      df = df.applymap(lambda x: str(x) if isinstance(x, dict) else x)
-      
-      with st.container(border=True):
-        st.subheader(":material/table_rows: 검색 결과", divider=True)
-        fns.display_data_grid(df)
+        submit = r[2].button("Start Search", type="primary", icon=":material/search:", use_container_width=True)
         
-        for index, row in df.iterrows():
-            with st.container():
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    thumbnail = row.get("thumbnail")
-                    if thumbnail and thumbnail != "N/A":
-                        st.image(thumbnail, use_container_width=True)
-                    else:
-                        st.write("이미지 없음")
-                with col2:
-                    st.markdown(f"**{row.get('title', '제목 없음')}**")
-                    source_name = row.get('source', '')
-                    st.badge(f"[{source_name if source_name else ''}]", icon=":material/newspaper:", color="primary")
-                    st.badge(f"{row.get('date', '날짜 없음')}", icon=":material/calendar_month:")
-                    st.markdown(f"{row.get('snippet', '본문 요약 없음')}")
-                    st.markdown(f":red[[:material/open_in_new: 기사 원문 보기]({row.get('link', '#')})]")
-                st.divider()
+        if submit:
+            if use_sample:
+                query_kwd = "캐치티니핑+케데헌+주가"
+            if not query_kwd:
+                st.error("검색어를 입력해 주세요.")
+                st.stop()
+            with st.spinner(":blue[:material/automation: [AI Report] Google News 검색 중...]"):
+                df = search_news_serpapi(query_kwd)
+        
+        if not df.empty:
+            # pandas 2.1.0+ 호환성
+            try:
+                df = df.map(lambda x: str(x) if isinstance(x, dict) else x)
+            except AttributeError:
+                df = df.applymap(lambda x: str(x) if isinstance(x, dict) else x)
+            
+            with st.container(border=True):
+                st.subheader(":material/table_rows: 검색 결과", divider=True)
+                fns.display_data_grid(df)
+                
+                for index, row in df.iterrows():
+                    with st.container():
+                        col1, col2 = st.columns([1, 3])
+                        with col1:
+                            thumbnail = row.get("thumbnail")
+                            if thumbnail and thumbnail != "N/A":
+                                st.image(thumbnail, use_container_width=True)
+                            else:
+                                st.write("이미지 없음")
+                        with col2:
+                            st.markdown(f"**{row.get('title', '제목 없음')}**")
+                            source_name = row.get('source', '')
+                            st.badge(f"[{source_name if source_name else ''}]", icon=":material/newspaper:", color="primary")
+                            st.badge(f"{row.get('date', '날짜 없음')}", icon=":material/calendar_month:")
+                            st.markdown(f"{row.get('snippet', '본문 요약 없음')}")
+                            st.markdown(f":red[[:material/open_in_new: 기사 원문 보기]({row.get('link', '#')})]")
+                    st.divider()
 
-      with st.container(border=True):
-        st.subheader(":material/cloud: 키워드 클라우드", divider=True)
-        if "title" in df.columns:
-          fns.display_word_cloud(df["title"], width=1000, background_color='white')
+            with st.container(border=True):
+                st.subheader(":material/cloud: 키워드 클라우드", divider=True)
+                if "title" in df.columns:
+                    fns.display_word_cloud(df["title"], width=1000, background_color='white')
+
       
     # st.write(df)
 
 
 if __name__ == "__main__":
-    query = "캐치티니핑+케데헌+주가"
+    query = "엔터테크, Enter-Tech, enter-tech, kpop"
     df = search_news_serpapi(query)
 
     # Save CSV

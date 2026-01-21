@@ -1,0 +1,5 @@
+{
+  "name": "K-Ent Artist DB Assistant",
+  "description": "A smart assistant to search Korean artist information and generate SQL queries for database updates.",
+  "requestFramePermissions": []
+}

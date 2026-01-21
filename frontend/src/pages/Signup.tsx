@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
-import { Toaster } from 'sonner';
 
 
 const Signup: React.FC = () => {
@@ -45,7 +44,7 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="flex-1 flex items-center justify-center p-4">
       <Card className="w-[350px] rounded-2xl shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold text-foreground">FAMS v1.0</CardTitle>
@@ -92,7 +91,6 @@ const Signup: React.FC = () => {
           </form>
         </CardContent>
       </Card>
-      <Toaster richColors position="top-right" />
     </div>
   );
 };

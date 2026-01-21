@@ -386,16 +386,14 @@ const Artists = () => {
                   </td>
                   <td className="p-6">
                     <div className="flex items-center space-x-3">
-                      {artist.profile_photo ? (
-                        <>
-                          {console.log("Artist profile_photo:", artist.profile_photo)}
-                          <img src={artist.profile_photo} alt={artist.name} className="w-12 h-12 object-cover rounded-xl" />
-                        </>
-                      ) : (
-                        <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-                          <span className="text-lg font-bold text-white">{artist.name[0]}</span>
-                        </div>
-                      )}
+                      <img 
+                        src={artist.profile_photo || "https://via.placeholder.com/150/0000FF/FFFFFF?text=No+Image"} 
+                        alt={artist.name} 
+                        className="w-12 h-12 object-cover rounded-xl"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://via.placeholder.com/150/0000FF/FFFFFF?text=No+Image";
+                        }}
+                      />
                       <div>
                         <p className="font-medium">{artist.name}</p>
                       </div>

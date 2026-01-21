@@ -9,6 +9,7 @@ from .post import Post
 from .news import News
 from .activity import Activity
 from .staff import Staff
+from .instagram import InstagramUser, InstagramSearchResult, InstagramProfilePic, InstagramBioLink, InstagramBusinessContact # Added Instagram models
 
 __all__ = [
     'Artist',
@@ -21,5 +22,10 @@ __all__ = [
     'Post',
     'News',
     'Activity',
-    'Staff'
+    'Staff',
+    'InstagramUser', # Added
+    'InstagramSearchResult', # Added
+    'InstagramProfilePic', # Added
+    'InstagramBioLink', # Added
+    'InstagramBusinessContact' # Added
 ]

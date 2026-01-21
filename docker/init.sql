@@ -355,7 +355,7 @@ CREATE TABLE `Users` (
   `status` varchar(10) NOT NULL DEFAULT 'Y' COMMENT '상태',
   `regdate` datetime DEFAULT CURRENT_TIMESTAMP,
   `hiredate` date DEFAULT NULL,
-  `last_login` datetime DEFAULT CURRENT_TIMESTAMP COMMENT 'zusam.ai 로그인시 업데이트 됨',
+  `last_login` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '로그인시 업데이트 됨',
   `service_name` varchar(20) DEFAULT NULL COMMENT '이용한  서비스 메뉴(Link)',
   PRIMARY KEY (`uqid`,`uname`,`uid`)
 ) ENGINE=InnoDB AUTO_INCREMENT=179 DEFAULT CHARSET=utf8mb3;

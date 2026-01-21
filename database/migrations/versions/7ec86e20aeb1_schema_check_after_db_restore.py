@@ -275,7 +275,7 @@ def downgrade():
     sa.Column('status', mysql.VARCHAR(length=10), server_default=sa.text("'Y'"), nullable=False, comment='상태'),
     sa.Column('regdate', mysql.DATETIME(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.Column('hiredate', sa.DATE(), nullable=True),
-    sa.Column('last_login', mysql.DATETIME(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True, comment='zusam.ai 로그인시 업데이트 됨'),
+    sa.Column('last_login', mysql.DATETIME(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True, comment='로그인시 업데이트 됨'),
     sa.Column('service_name', mysql.VARCHAR(length=20), nullable=True, comment='이용한  서비스 메뉴(Link)'),
     sa.PrimaryKeyConstraint('uqid', 'uname', 'uid'),
     mysql_default_charset='utf8mb3',

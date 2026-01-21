@@ -72,10 +72,10 @@ const Settings = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">TikTok API Key</label>
+                      <label className="text-sm font-medium">GEMINI  API Key</label>
                       <input
                         type="password"
-                        placeholder="TikTok API 키를 입력하세요"
+                        placeholder="GEMINI  API 키를 입력하세요"
                         className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                       />
                     </div>
@@ -129,7 +129,7 @@ const Settings = () => {
                       <label className="text-sm font-medium">포트</label>
                       <input
                         type="number"
-                        defaultValue="3307"
+                        defaultValue="3306"
                         className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                       />
                     </div>
@@ -145,7 +145,7 @@ const Settings = () => {
                       <label className="text-sm font-medium">사용자명</label>
                       <input
                         type="text"
-                        defaultValue="first_ent_user"
+                        defaultValue="root"
                         className="w-full px-3 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
                       />
                     </div>

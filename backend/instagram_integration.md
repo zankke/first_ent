@@ -37,14 +37,14 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=password
-DB_NAME=instagram_db
+DB_NAME=first_ent
 ```
 
 ### 3단계: 데이터베이스 초기화
 
 ```bash
 # 데이터베이스 생성
-mysql -u root -p -e "CREATE DATABASE instagram_db CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+mysql -u root -p -e "CREATE DATABASE first_ent CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
 
 # 테이블 생성 (SQLAlchemy 사용 시)
 python -c "
@@ -383,7 +383,7 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: instagram_db
+      MYSQL_DATABASE: first_ent
     ports:
       - "3306:3306"
   

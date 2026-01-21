@@ -10,7 +10,7 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 3000,
+    port: 3002, // Hardcoded to 3002 for consistency with start_firstent.sh
     hmr: {
       // host: 'localhost',
     },
@@ -25,7 +25,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5002', // Flask backend server
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        logLevel: 'debug', // Add debug logging for proxy
       },
     },
   },

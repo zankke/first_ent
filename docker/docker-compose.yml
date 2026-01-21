@@ -3,7 +3,7 @@ version: '3.8'
 services:
   mysql:
     image: mysql:8.0
-    container_name: first_db
+    container_name: mysql-dev
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: "qpflxktm(*)!#%"

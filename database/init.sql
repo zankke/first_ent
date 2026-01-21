@@ -163,7 +163,7 @@ INSERT INTO accounts (username, email, password_hash, role) VALUES
 ('admin', 'admin@firstent.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J7v5Q5K2', 'admin');
 
 INSERT INTO artists (name, real_name, nationality, agency, status) VALUES 
-('Sample Artist', '홍길동', 'Korea', 'First Entertainment', 'active');
+('Sample Artist', '홍길동', 'Korea', 'theProjectCompany', 'active');
 
 INSERT INTO channels (artist_id, platform, channel_id, channel_name, follower_count) VALUES 
 (1, 'instagram', 'sample_artist_ig', 'Sample Artist Instagram', 10000),

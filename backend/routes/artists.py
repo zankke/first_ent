@@ -1,11 +1,9 @@
 from flask import Blueprint, request, jsonify, send_file, render_template, url_for
-from backend.app import db
+from ..app import db
 from backend.models.artist import Artist
-from backend.models.channel import Channel # New import
-from backend.models.channel_stat import ChannelStat # New import
-from backend.models.news import News # New import
+from backend.models import Channel, ChannelStat, News
 
-from datetime import datetime
+from datetime import datetime, date
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from pptx import Presentation
@@ -16,12 +14,148 @@ import logging
 
 from markdown import markdown # Import markdown library
 import requests # Import requests library
+from backend.utils.wikipedia_utils import get_artist_info_from_wikipedia # New import
+from backend.utils.auth import require_role # Added import
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'public', 'images', 'artists', 'profile')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 bp = Blueprint('artists', __name__)
 logger = logging.getLogger(__name__)
+
+@bp.route('/search_and_generate_sql', methods=['GET'])
+def search_and_generate_sql():
+    artist_name = request.args.get('artist_name')
+    if not artist_name:
+        return jsonify({'error': 'Artist name is required.'}), 400
+
+    artist_data = get_artist_info_from_wikipedia(artist_name)
+    if not artist_data:
+        return jsonify({'message': f'Could not find information for {artist_name} on Wikipedia.'}), 404
+
+    # Check if artist already exists in DB
+    existing_artist = Artist.query.filter_by(name=artist_name).first()
+
+    sql_query = ""
+    if existing_artist:
+        sql_query = generate_update_sql(existing_artist.id, artist_data)
+        artist_exists_flag = True
+    else:
+        sql_query = generate_insert_sql(artist_data)
+        artist_exists_flag = False
+    
+    return jsonify({
+        'sql_query': sql_query,
+        'artist_data': artist_data,
+        'artist_exists': artist_exists_flag
+    })
+
+def generate_insert_sql(data):
+    columns = []
+    values = []
+    
+    # Default values for fields not easily extracted or provided by user
+    data.setdefault('eng_name', 'NULL')
+    data.setdefault('birth_date', 'NULL')
+    data.setdefault('height_cm', 'NULL')
+    data.setdefault('debut_date', 'NULL')
+    data.setdefault('debut_title', 'NULL')
+    data.setdefault('recent_activity_category', 'NULL')
+    data.setdefault('recent_activity_name', 'NULL')
+    data.setdefault('genre', 'NULL')
+    data.setdefault('agency_id', 'NULL')
+    data.setdefault('current_agency_name', 'NULL')
+    data.setdefault('nationality', 'NULL')
+    data.setdefault('is_korean', 1) # Default to Korean
+    data.setdefault('gender', 'NA') # Default to Not Applicable
+    data.setdefault('status', 'ACTIVE')
+    data.setdefault('category_id', 'NULL')
+    data.setdefault('platform', 'NULL')
+    data.setdefault('social_media_url', 'NULL')
+    data.setdefault('profile_photo', 'NULL')
+    data.setdefault('guarantee_krw', 'NULL')
+    data.setdefault('wiki_summary', 'NULL')
+
+    for key, value in data.items():
+        # Ensure column names match the schema (e.g., birth_date -> birth_date)
+        if key in ['name', 'eng_name', 'birth_date', 'height_cm', 'debut_date', 'debut_title',
+                   'recent_activity_category', 'recent_activity_name', 'genre', 'agency_id',
+                   'current_agency_name', 'nationality', 'is_korean', 'gender', 'status',
+                   'category_id', 'platform', 'social_media_url', 'profile_photo',
+                   'guarantee_krw', 'wiki_summary']:
+            
+            columns.append(key)
+            sql_value = "" # Initialize sql_value
+            if isinstance(value, str):
+                sql_value = "'" + value.replace("'", "''") + "'"
+            elif type(value).__name__ == 'date':
+                sql_value = f"'{value.strftime('%Y-%m-%d')}'"
+            elif value is None:
+                sql_value = "NULL"
+            else:
+                sql_value = str(value)
+            values.append(sql_value)
+
+    return f"INSERT INTO first_ent.Artists ({', '.join(columns)}) VALUES ({', '.join(values)});"
+
+def generate_update_sql(artist_id, data):
+    set_clauses = []
+    
+    # Default values for fields not easily extracted or provided by user
+    # These will be used if the key is not present in data
+    default_values = {
+        'eng_name': 'NULL',
+        'birth_date': 'NULL',
+        'height_cm': 'NULL',
+        'debut_date': 'NULL',
+        'debut_title': 'NULL',
+        'recent_activity_category': 'NULL',
+        'recent_activity_name': 'NULL',
+        'genre': 'NULL',
+        'agency_id': 'NULL',
+        'current_agency_name': 'NULL',
+        'nationality': 'NULL',
+        'is_korean': 1, # Default to Korean
+        'gender': 'NA', # Default to Not Applicable
+        'status': 'ACTIVE',
+        'category_id': 'NULL',
+        'platform': 'NULL',
+        'social_media_url': 'NULL',
+        'profile_photo': 'NULL',
+        'guarantee_krw': 'NULL',
+        'wiki_summary': 'NULL'
+    }
+
+    for key, value in data.items():
+        if key in ['name', 'eng_name', 'birth_date', 'height_cm', 'debut_date', 'debut_title',
+                   'recent_activity_category', 'recent_activity_name', 'genre', 'agency_id',
+                   'current_agency_name', 'nationality', 'is_korean', 'gender', 'status',
+                   'category_id', 'platform', 'social_media_url', 'profile_photo',
+                   'guarantee_krw', 'wiki_summary']:
+            
+            sql_value = ""
+            if isinstance(value, str):
+                sql_value = "'" + value.replace("'", "''") + "'"
+            elif type(value).__name__ == 'date':
+                sql_value = f"'{value.strftime('%Y-%m-%d')}'"
+            elif value is None:
+                sql_value = "NULL"
+            else:
+                sql_value = str(value)
+            set_clauses.append(f"{key}={sql_value}")
+
+    # Add default values for fields not returned by Wikipedia if they are not already in set_clauses
+    for key, default_value in default_values.items():
+        if key not in data and key in ['name', 'eng_name', 'birth_date', 'height_cm', 'debut_date', 'debut_title',
+                   'recent_activity_category', 'recent_activity_name', 'genre', 'agency_id',
+                   'current_agency_name', 'nationality', 'is_korean', 'gender', 'status',
+                   'category_id', 'platform', 'social_media_url', 'profile_photo',
+                   'guarantee_krw', 'wiki_summary']:
+             set_clauses.append(f"{key}={default_value}")
+
+
+    return f"UPDATE first_ent.Artists SET {', '.join(set_clauses)} WHERE id={artist_id};"
+
 
 @bp.route('/test-image')
 def test_image():
@@ -250,6 +384,12 @@ def generate_artist_report():
             # Fetch recent news
             recent_news_articles = News.query.filter_by(artist_id=artist.id).order_by(News.published_at.desc()).limit(5).all()
 
+            # --- Fetch Activities ---
+            all_activities = Activity.query.filter_by(artist_id=artist.id).order_by(Activity.start_time.desc()).all()
+            activities_cf = [a for a in all_activities if a.activity_type and ('CF' in a.activity_type.upper() or 'AD' in a.activity_type.upper())]
+            activities_broadcast = [a for a in all_activities if a.activity_type and ('DRAMA' in a.activity_type.upper() or 'MOVIE' in a.activity_type.upper() or 'TV' in a.activity_type.upper())]
+            activities_other = [a for a in all_activities if a not in activities_cf and a not in activities_broadcast]
+
             # --- Populate pages_data with comprehensive content ---
             pages_data = []
 
@@ -272,18 +412,20 @@ def generate_artist_report():
             profile_photo_url = url_for('artists.serve_profile_photo', filename=profile_photo_filename, _external=True)
 
             page_1_content = f"""
-                <section>
-                    <h2>1. Artist Overview</h2>
-                    <figure>
-                        <img src="{profile_photo_url}" alt="{artist.name}" style="max-width: 200px; height: auto;">
-                        <figcaption>Profile photo of {artist.name}</figcaption>
-                    </figure>
-                    <h3>Biography</h3>
-                    {artist_bio_html}
+                <section class="overview-section">
+                    <div class="profile-header">
+                        <div class="profile-image-container">
+                             <img src="{profile_photo_url}" alt="{artist.name}" class="profile-image">
+                        </div>
+                        <div class="profile-info">
+                            <h3>Biography</h3>
+                            {artist_bio_html}
+                        </div>
+                    </div>
                 </section>
-                <section>
-                    <h2>2. Social Media Performance</h2>
-                    <table>
+                <section class="stats-section">
+                    <h2>Social Media Performance</h2>
+                    <table class="stats-table">
                         <thead>
                             <tr><th>Platform</th><th>Name</th><th>Followers</th><th>Engagement Rate</th></tr>
                         </thead>
@@ -301,21 +443,67 @@ def generate_artist_report():
             """
             pages_data.append({'number': 1, 'content': page_1_content})
             
-            # Page 2: Recent News & Media
+            # Page 2: Activities (Broadcast & CF)
+            # Helper to generate activity rows
+            def generate_activity_rows(activities):
+                if not activities: return '<tr><td colspan="3">No activities found.</td></tr>'
+                rows = []
+                for act in activities:
+                    start = act.start_time.strftime('%Y.%m') if act.start_time else ''
+                    end = act.end_time.strftime('%Y.%m') if act.end_time else ''
+                    period = f"{start} - {end}" if start or end else ''
+                    rows.append(f'''
+                        <tr>
+                            <td class="activity-name">{act.activity_name}</td>
+                            <td class="activity-type">{act.activity_type}</td>
+                            <td class="activity-period">{period}</td>
+                        </tr>
+                    ''')
+                return ''.join(rows)
+
             page_2_content = f"""
-                <section>
-                    <h2>3. Recent News & Media</h2>
-                    {''.join([f'''
-                    <div class="news-item">
-                        <h3><a href="{news.url}">{news.title}</a></h3>
-                        <p><strong>Source:</strong> {news.media_name if news.media_name else news.source} | <strong>Published:</strong> {news.published_at.strftime('%Y-%m-%d') if news.published_at else 'N/A'}</p>
-                        <p><strong>Sentiment:</strong> {news.sentiment} | <strong>Relevance:</strong> {news.relevance_score:.2f}</p>
-                        <p>{news.content if news.content else ''}</p>
-                        <hr>
-                    </div>''' for news in recent_news_articles]) if recent_news_articles else '<p>No recent news articles available.</p>'}
+                <section class="activities-section">
+                    <div class="activity-group">
+                        <h2>Filmography (Broadcast & Movies)</h2>
+                        <table class="activity-table">
+                            <thead><tr><th>Title</th><th>Type</th><th>Period</th></tr></thead>
+                            <tbody>
+                                {generate_activity_rows(activities_broadcast)}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="activity-group">
+                        <h2>Advertising & Endorsements</h2>
+                        <table class="activity-table">
+                            <thead><tr><th>Brand/Campaign</th><th>Type</th><th>Period</th></tr></thead>
+                            <tbody>
+                                {generate_activity_rows(activities_cf)}
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
             """
             pages_data.append({'number': 2, 'content': page_2_content})
+
+            # Page 3: Recent News & Media
+            page_3_content = f"""
+                <section class="news-section">
+                    <h2>Recent News & Media</h2>
+                    <div class="news-grid">
+                    {''.join([f'''
+                    <div class="news-card">
+                        <div class="news-header">
+                            <span class="news-source">{news.media_name if news.media_name else news.source}</span>
+                            <span class="news-date">{news.published_at.strftime('%Y-%m-%d') if news.published_at else 'N/A'}</span>
+                        </div>
+                        <h3 class="news-title"><a href="{news.url}">{news.title}</a></h3>
+                        <p class="news-sentiment">Sentiment: {news.sentiment}</p>
+                        <p class="news-snippet">{news.content[:200] + '...' if news.content else ''}</p>
+                    </div>''' for news in recent_news_articles]) if recent_news_articles else '<p>No recent news articles available.</p>'}
+                    </div>
+                </section>
+            """
+            pages_data.append({'number': 3, 'content': page_3_content})
 
             # Render the HTML template (pass artist.eng_name to template)
             rendered_html = render_template(
@@ -323,14 +511,17 @@ def generate_artist_report():
                 report_title=f"{artist.eng_name if artist.eng_name else artist.name} Artist Report",
                 artist_name=artist.eng_name if artist.eng_name else artist.name,
                 generation_date=datetime.now().strftime('%Y-%m-%d'),
-                author_name="First Ent Management", # Replace with dynamic author
+                author_name="FirstEnt Management", # Updated author name
                 css_path=url_for('static', filename='css/report_styles.css'),
                 logo_path=url_for('static', filename='images/logo.png'), # Placeholder logo
                 small_logo_path=url_for('static', filename='images/small_logo.png'), # Placeholder small logo
                 cover_page=True, # Set to False if no cover page
                 pages=pages_data,
-                header_text=f"{artist.eng_name if artist.eng_name else artist.name} Report",
-                footer_text="Confidential"
+                header_text=f"{artist.eng_name if artist.eng_name else artist.name} - Confidential",
+                footer_text="FirstEnt Management - Internal Report",
+                activities_cf=activities_cf, # Pass context though we used pages_data mostly
+                activities_broadcast=activities_broadcast,
+                activities_other=activities_other
             )
 
             # --- Send HTML to Puppeteer service ---
@@ -578,10 +769,78 @@ def generate_artist_report():
 def delete_artist(artist_id):
     """아티스트 삭제"""
     artist = Artist.query.get_or_404(artist_id)
+    # Explicitly merge the object into the current session before deletion
+    artist = db.session.merge(artist)
     db.session.delete(artist)
     db.session.commit()
     
     return jsonify({'message': '아티스트가 삭제되었습니다.'}), 200
+
+@bp.route('/upsert-from-wiki', methods=['POST'])
+@require_role('admin')
+def upsert_artist_from_wiki():
+    data = request.get_json()
+    artist_data = data.get('artist_data')
+
+    if not artist_data or not artist_data.get('name'):
+        return jsonify({'error': 'Artist data or name is missing.'}), 400
+
+    artist_name = artist_data['name']
+    existing_artist = Artist.query.filter_by(name=artist_name).first()
+
+    try:
+        if existing_artist:
+            # Update existing artist
+            artist = existing_artist
+            message = f"아티스트 '{artist_name}' 정보가 업데이트되었습니다."
+        else:
+            # Create new artist
+            artist = Artist()
+            message = f"새로운 아티스트 '{artist_name}' 정보가 추가되었습니다."
+            db.session.add(artist)
+
+        # Map and convert data types for all fields
+        artist.name = artist_data.get('name', artist.name)
+        artist.eng_name = artist_data.get('eng_name', artist.eng_name)
+        
+        # Handle birth_date
+        if artist_data.get('birth_date') and artist_data['birth_date'] != 'NULL':
+            artist.birth_date = datetime.strptime(artist_data['birth_date'], '%Y-%m-%d').date()
+        else:
+            artist.birth_date = None # Explicitly set to None for NULL
+
+        artist.height_cm = int(artist_data['height_cm']) if artist_data.get('height_cm') and artist_data['height_cm'] != 'NULL' else None
+        
+        # Handle debut_date
+        if artist_data.get('debut_date') and artist_data['debut_date'] != 'NULL':
+            artist.debut_date = datetime.strptime(artist_data['debut_date'], '%Y-%m-%d').date()
+        else:
+            artist.debut_date = None # Explicitly set to None for NULL
+
+        artist.debut_title = artist_data.get('debut_title', artist.debut_title)
+        artist.recent_activity_category = artist_data.get('recent_activity_category', artist.recent_activity_category)
+        artist.recent_activity_name = artist_data.get('recent_activity_name', artist.recent_activity_name)
+        artist.genre = artist_data.get('genre', artist.genre)
+        artist.agency_id = int(artist_data['agency_id']) if artist_data.get('agency_id') and artist_data['agency_id'] != 'NULL' else None
+        artist.current_agency_name = artist_data.get('current_agency_name', artist.current_agency_name)
+        artist.nationality = artist_data.get('nationality', artist.nationality)
+        artist.is_korean = artist_data.get('is_korean', artist.is_korean) in [True, 'True', 1, '1'] # Handle boolean
+        artist.gender = artist_data.get('gender', artist.gender)
+        artist.status = artist_data.get('status', artist.status)
+        artist.category_id = int(artist_data['category_id']) if artist_data.get('category_id') and artist_data['category_id'] != 'NULL' else None
+        artist.platform = artist_data.get('platform', artist.platform)
+        artist.social_media_url = artist_data.get('social_media_url', artist.social_media_url)
+        artist.profile_photo = artist_data.get('profile_photo', artist.profile_photo)
+        artist.guarantee_krw = int(artist_data['guarantee_krw']) if artist_data.get('guarantee_krw') and artist_data['guarantee_krw'] != 'NULL' else None
+        artist.wiki_summary = artist_data.get('wiki_summary', artist.wiki_summary)
+
+        db.session.commit()
+        return jsonify({'message': message, 'artist': artist.to_dict()}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error upserting artist {artist_name} from wiki: {e}", exc_info=True)
+        return jsonify({'error': f'DB 적용 중 오류 발생: {e}'}), 500
 
 from backend.services.news_crawler import NewsCrawler # Import NewsCrawler
 

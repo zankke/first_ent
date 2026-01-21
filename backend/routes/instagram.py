@@ -5,8 +5,8 @@ from urllib.parse import quote_plus
 import requests
 import os
 
-from backend.app import db
-from backend.models.instagram import InstagramUser, InstagramSearchResult, InstagramProfilePic, InstagramBioLink, InstagramBusinessContact
+from ..app import db
+from backend.models import InstagramUser, InstagramSearchResult, InstagramProfilePic, InstagramBioLink, InstagramBusinessContact
 from backend.config.instagram_config import InstagramAPIConfig
 from backend.services.instagram_service import InstagramService
 

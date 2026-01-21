@@ -32,7 +32,7 @@ def create_app():
 
     if db_user and db_password and db_host and db_port and db_name:
         encoded_password = quote_plus(db_password)
-        app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+mysqlconnector://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
+        app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}?charset=utf8mb4"
     else:
         # Fallback to DATABASE_URL if individual components are not set
         app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
@@ -44,22 +44,13 @@ def create_app():
     # 확장 초기화
     db.init_app(app)
     migrate.init_app(app, db, directory=os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', 'database', 'migrations'))
-    CORS(app, resources={r"/api/*": {"origins": [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://127.0.0.1:3002",
-        "http://127.0.0.1:5002",
-        "http://localhost:5002",
-        "http://konikt-ai.kr:3000",
-    ]}})
+    CORS(app)
     # Configure logging for debug messages
     import logging
     logging.basicConfig(level=logging.DEBUG)
     
     # 라우트 등록
-    from backend.routes import artists, channels, accounts, boards, api_keys, news, dashboard, activities, instagram, auth
+    from ..routes import artists, channels, accounts, boards, api_keys, news, dashboard, activities, instagram, auth
 
     #from routes import artists, channels, accounts, boards, api_keys, news
     app.register_blueprint(auth.bp, url_prefix='/api/auth')

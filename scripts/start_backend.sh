@@ -16,8 +16,8 @@ export PYTHONPATH=$PROJECT_ROOT
 
 # Flask environment variables
 export FLASK_APP=backend.app:create_app
-export FLASK_ENV=development
-export FLASK_DEBUG=1
+export FLASK_RUN_SET_AUTORELOAD=0
+
 
 # Move to the backend directory
 cd "$PROJECT_ROOT/backend"
@@ -137,7 +137,8 @@ fi
 HOST_IP="0.0.0.0"
 
 echo "Starting Flask server on http://$HOST_IP:$PORT using nohup (detached mode)"
-nohup flask run --host=$HOST_IP --port=$PORT > flask_nohup.log 2>&1 &
+
+nohup flask run --host=$HOST_IP --port=$PORT >> flask_nohup.log 2>&1 &
 SERVER_PID=$!
 echo "$SERVER_PID" > "$PID_FILE"
 echo "Flask server started with nohup. Logs are being written to flask_nohup.log. PID: $SERVER_PID"

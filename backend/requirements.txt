@@ -28,7 +28,7 @@ requests==2.31.0             # HTTP 요청 라이브러리
 schedule
 scikit-learn
 selenium
-serpapi
+#serpapi
 SQLAlchemy
 streamlit
 streamlit_antd_components
@@ -37,3 +37,7 @@ weasyprint
 Werkzeug
 wordcloud
 wikipedia
+wikipedia-api # Added for Wikipedia API interaction
+google-search-results
+urllib3<2
+perplexityai

@@ -114,7 +114,7 @@ const Dashboard = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold gradient-text mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">[First Ent] AI 기반 Artist 관리 시스템에 오신 것을 환영합니다</p>
+        <p className="text-muted-foreground">[theProjectCompany] AI 기반 Artist 관리 시스템에 오신 것을 환영합니다</p>
       </div>
       
       {/* 통계 카드 */}
@@ -159,13 +159,21 @@ const Dashboard = () => {
               {recentArtists.map((artist, index) => (
                 <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
                   <div className="flex items-center space-x-3">
-                    {artist.profile_photo ? (
-                      <img src={artist.profile_photo} alt={artist.name} className="w-10 h-10 object-cover rounded-full" />
-                    ) : (
-                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-white">{artist.name[0]}</span>
+                    <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center relative bg-muted">
+                      {artist.profile_photo && (
+                        <img 
+                          src={artist.profile_photo} 
+                          alt={artist.name} 
+                          className="w-full h-full object-cover relative z-10"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/80 to-pink-500/80 flex items-center justify-center">
+                        <span className="text-sm font-bold text-white uppercase">{artist.name[0]}</span>
                       </div>
-                    )}
+                    </div>
                     <div>
                       <p className="font-medium">{artist.name}</p>
                       {artist.channels && artist.channels.map((channel, channelIndex) => (
@@ -220,14 +228,30 @@ const Dashboard = () => {
         {!recentNewsLoading && !recentNewsError && recentNews.length > 0 && (
           <div className="space-y-4">
             {recentNews.map((newsItem, index) => (
-              <a href={newsItem.url} target="_blank" rel="noopener noreferrer" key={index} className="flex items-start space-x-4 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
-                {newsItem.thumbnail && (
-                  <img src={newsItem.thumbnail} alt="News thumbnail" className="w-20 h-20 object-cover rounded-lg flex-shrink-0" />
-                )}
-                <div className="flex-grow">
-                  <p className="font-medium text-sm mb-1">{newsItem.title}</p>
+              <a href={newsItem.url} target="_blank" rel="noopener noreferrer" key={index} className="flex items-start space-x-4 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group">
+                <div className="w-20 h-20 bg-muted rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center relative shadow-inner border border-white/5">
+                  {newsItem.thumbnail && (
+                    <img 
+                      src={newsItem.thumbnail} 
+                      alt="" 
+                      className="w-full h-full object-cover relative z-10"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 text-slate-500">
+                    <Radio className="w-8 h-8 mb-1 opacity-20" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-30">News</span>
+                  </div>
+                </div>
+                <div className="flex-grow min-w-0">
+                  <p className="font-medium text-sm mb-1 truncate group-hover:text-primary transition-colors">{newsItem.title}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2">{newsItem.content}</p>
-                  <p className="text-xs text-gray-500 mt-1">{newsItem.media_name} - {new Date(newsItem.published_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-500 mt-1 flex items-center">
+                    <Link className="w-3 h-3 mr-1 opacity-50" />
+                    {newsItem.media_name} {newsItem.published_at ? ` - ${new Date(newsItem.published_at).toLocaleDateString()}` : newsItem.crawled_at ? ` - ${new Date(newsItem.crawled_at).toLocaleDateString()} (수집)` : ''}
+                  </p>
                 </div>
               </a>
             ))}

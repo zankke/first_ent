@@ -17,22 +17,41 @@ choose_and_assign_app_port() {
     for try in 0 1; do
         local PID=$(lsof -t -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null)
         if [ -z "$PID" ]; then
-            echo "   ✅ 포트 $PORT 사용가능."
+            echo "   ✅ 포트 $PORT 사용가능." >&2 # Redirect to stderr
             echo "$PORT"; return 0
         fi
         local CMDLINE=$(ps -p "$PID" -o command= 2>/dev/null)
         if [[ "$CMDLINE" == *"$SERVICE_KEYWORD"* ]]; then
-            echo "   ⚠️  포트 $PORT 자가 프로세스(PID:$PID) 점유중. 강제 종료 후 재할당."
+            echo "   ⚠️  포트 $PORT 자가 프로세스(PID:$PID) 점유중. 강제 종료 후 재할당." >&2 >&2 # Redirect to stderr
             kill -9 "$PID" 2>/dev/null; sleep 1
-            echo "   ✅ 포트 $PORT 재사용."
+            echo "   ✅ 포트 $PORT 재사용." >&2 >&2 # Redirect to stderr
             echo "$PORT"; return 0
         fi
         [ $try -eq 0 ] && PORT=$((DEFAULT_PORT+10)) && [ "$PORT" -le 10000 ] || {
-            echo "❌ 포트 $DEFAULT_PORT, $PORT 모두 외부 점유중. 종료."; return 1; }
+            echo "❌ 포트 $DEFAULT_PORT, $PORT 모두 외부 점유중. 종료."; return 1; } >&2 # Redirect to stderr
     done
 }
 
 echo -e "🚀 FirstEnt v2 시작\n📁 ROOT: $PROJECT_ROOT"
+
+# Function to wait for MySQL to be ready
+wait_for_db() {
+    local DB_HOST=$1
+    local DB_PORT=$2
+    local DB_USER=$3
+    local DB_PASSWORD=$4
+    local DB_NAME=$5
+    echo "   ⏳ Waiting for DB at $DB_HOST:$DB_PORT/$DB_NAME..."
+    for i in {1..30}; do # wait for up to 30 seconds
+        if nc -z "$DB_HOST" "$DB_PORT" &>/dev/null; then
+            echo "   ✅ DB port is open!"
+            return 0
+        fi
+        sleep 1
+    done
+    echo "❌ DB did not become ready in time. Exiting."
+    exit 1
+}
 
 ############################################
 # 백엔드 로드
@@ -80,7 +99,7 @@ if [ -f "$ENV_FILE" ]; then
     if [ "$DB_HOST" ] && [ "$DB_PORT" ]; then
         echo "   📋 DB: $DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
         # SSH 터널 자동 설정 (로컬 X)
-        if [[ "$DB_HOST" != "localhost" && "$DB_HOST" != "127.0.0.1" ]]; then
+        if [[ "$DB_HOST" != "localhost" && "$DB_HOST" != "127.0.0.1" && "$SKIP_SSH_TUNNEL" != "true" ]]; then
             SSH_HOST=${SSH_HOST:-$DB_HOST}
             if [ "$SSH_HOST" ]; then
                 SSH_TARGET="${SSH_USER:-root}@${SSH_HOST}"
@@ -101,6 +120,21 @@ else
     echo "   ⚠️  backend/.env 파일 없음."
 fi
 
+# Check if 'mysql-dev' container is running and use it if so
+if docker ps --format '{{.Names}}' | grep -q 'mysql-dev'; then
+    echo "   🐳 'mysql-dev' Docker container detected. Overriding DB connection details."
+    export DB_HOST="127.0.0.1"
+    export DB_PORT="3306"
+    # Set DB_USER, DB_PASSWORD, DB_NAME for the 'mysql-dev' container
+    export DB_USER="root"
+    export DB_PASSWORD="qpflxktm(*)!#%" # Correct password for mysql-dev
+    export DB_NAME="first_ent"
+    # Set a flag to skip SSH tunnel if connecting to a local Docker container
+    SKIP_SSH_TUNNEL="true"
+else
+    echo "   ⚠️  'mysql-dev' Docker container not found or not running, falling back to .env or default settings."
+fi
+
 export PYTHONPATH=$PROJECT_ROOT
 export FLASK_APP=backend.app:create_app
 
@@ -109,6 +143,13 @@ if [ "$SSH_TUNNEL_PID" ] || lsof -t -i:$SSH_TUNNEL_PORT 2>/dev/null >/dev/null; 
     export DB_HOST="127.0.0.1"
     export DB_PORT="$SSH_TUNNEL_PORT"
     echo "   🔄 SSH 터널 연결: 127.0.0.1:$SSH_TUNNEL_PORT"
+fi
+
+# Wait for DB to be ready
+if [ "$DB_HOST" ] && [ "$DB_PORT" ] && [ "$DB_USER" ] && [ "$DB_PASSWORD" ] && [ "$DB_NAME" ]; then
+    wait_for_db "$DB_HOST" "$DB_PORT" "$DB_USER" "$DB_PASSWORD" "$DB_NAME"
+else
+    echo "   ⚠️  Insufficient DB connection details to wait for DB."
 fi
 
 # DB migration 오류 캐치 (계속 진행)
@@ -131,13 +172,26 @@ fi
 
 # 백엔드 서버 기동
 cd "$PROJECT_ROOT"
-BACKEND_DEFAULT_PORT=5001
-BACKEND_PORT=$(choose_and_assign_app_port $BACKEND_DEFAULT_PORT "flask run") || { echo "❌ 백엔드 서버 실행불가. 종료"; exit 1; }
-[ -x "$PROJECT_ROOT/scripts/start_backend.sh" ] || chmod +x "$PROJECT_ROOT/scripts/start_backend.sh"
-BACKEND_CURRENT_PORT=$BACKEND_PORT "$PROJECT_ROOT/scripts/start_backend.sh" && sleep 5
+BACKEND_PORT=5002 # Hardcode backend port to 5002
+cd "$PROJECT_ROOT/backend" # Ensure we are in the backend directory
+export FLASK_APP=backend.app:create_app
+export FLASK_RUN_SET_AUTORELOAD=0
+export FLASK_ENV=development # Or 'production' based on context, but 'development' for now
+echo "DEBUG: BACKEND_PORT value: $BACKEND_PORT"
+nohup flask run --host=0.0.0.0 --port=$BACKEND_PORT > flask_nohup.log 2>&1 &
+SERVER_PID=$!
+echo "$SERVER_PID" > "$PROJECT_ROOT/backend/backend.pid" # Assuming backend.pid is in backend dir
+echo "Flask server started with nohup. Logs are being written to flask_nohup.log. PID: $SERVER_PID"
+cd "$PROJECT_ROOT" # Change back to project root
 
 # 백엔드 포트 정상확인(최대 10초 대기)
-for _ in {1..20}; do lsof -nP -iTCP:$BACKEND_PORT -sTCP:LISTEN &>/dev/null && { echo "   ✅ 백엔드 준비 ($BACKEND_PORT)"; break; } ; sleep 0.5; done
+for _ in {1..20}; do
+    if lsof -nP -iTCP:$BACKEND_PORT -sTCP:LISTEN &>/dev/null; then
+        echo "   ✅ 백엔드 준비 ($BACKEND_PORT)";
+        break;
+    fi
+    sleep 0.5;
+done
 
 ############################################
 # Puppeteer 서비스
@@ -170,10 +224,10 @@ export PATH="/opt/homebrew/bin:$PATH"
 echo "🚀 프론트엔드 시작..."
 
 cd "$PROJECT_ROOT"
-FRONTEND_DEFAULT_PORT=3002
-FRONTEND_PORT=$(choose_and_assign_app_port $FRONTEND_DEFAULT_PORT "npm run dev") || { echo "❌ 프론트엔드 실행불가. 종료"; exit 1; }
-[ -x "$PROJECT_ROOT/scripts/start_frontend.sh" ] || chmod +x "$PROJECT_ROOT/scripts/start_frontend.sh"
-FRONTEND_CURRENT_PORT=$FRONTEND_PORT "$PROJECT_ROOT/scripts/start_frontend.sh" && sleep 5
+FRONTEND_PORT=3002 # Hardcode frontend port to 3002
+cd "$PROJECT_ROOT/frontend" # Ensure we are in the frontend directory
+echo "Starting frontend server on port $FRONTEND_PORT using nohup (detached mode)"
+nohup npm run dev -- --port "$FRONTEND_PORT" > "$PROJECT_ROOT/frontend/frontend_nohup.log" 2>&1 &
 
 for _ in {1..40}; do lsof -nP -iTCP:$FRONTEND_PORT -sTCP:LISTEN &>/dev/null && { echo "   ✅ 프론트엔드 준비 ($FRONTEND_PORT)"; break; } ; sleep 0.5; done
 

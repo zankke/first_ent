@@ -26,6 +26,17 @@ const Accounts = () => {
   const [accounts, setAccounts] = useState<AccountType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+
+  const [newAccount, setNewAccount] = useState({
+    uid: '',
+    uemail: '',
+    password: '',
+    level: 'viewer' as AccountType['level'],
+    uname: '', // Added uname field
+  });
+  const [addAccountLoading, setAddAccountLoading] = useState(false);
+  const [addAccountError, setAddAccountError] = useState<string | null>(null); // State to control modal visibility
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -37,6 +48,14 @@ const Accounts = () => {
 
       setLoading(true);
       setError(null);
+
+      if (!session || !session.access_token) {
+        console.error('Accounts.tsx: No valid session or access token found. Cannot fetch accounts.');
+        setError('인증 정보가 없습니다. 다시 로그인해주세요.');
+        setLoading(false);
+        return;
+      }
+      
       try {
         const response = await fetch('/api/accounts', {
           headers: {
@@ -69,6 +88,50 @@ const Accounts = () => {
 
     fetchAccounts();
   }, [session]);
+
+  const handleAddAccountSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddAccountLoading(true);
+    setAddAccountError(null);
+
+    if (!session || !session.access_token) {
+      setAddAccountError('인증 정보가 없습니다. 다시 로그인해주세요.');
+      setAddAccountLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(newAccount),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '계정 추가에 실패했습니다.');
+      }
+
+      alert('계정이 성공적으로 추가되었습니다.');
+      setShowAddAccountModal(false);
+      setNewAccount({
+        uid: '',
+        uemail: '',
+        password: '',
+        level: 'viewer',
+      });
+      fetchAccounts(); // Re-fetch accounts to show the new one
+    } catch (e: any) {
+      console.error("Failed to add account:", e);
+      setAddAccountError(e.message || '알 수 없는 오류가 발생했습니다.');
+    } finally {
+      setAddAccountLoading(false);
+    }
+  };
 
   const getRoleColor = (level: string) => {
     switch (level) {
@@ -116,7 +179,10 @@ const Accounts = () => {
             )}
           </div>
         </div>
-        <button className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors">
+        <button
+          onClick={() => setShowAddAccountModal(true)}
+          className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors"
+        >
           <Plus className="w-4 h-4" />
           <span>새 계정 추가</span>
         </button>
@@ -278,6 +344,104 @@ const Accounts = () => {
           </table>
         </div>
       </div>
+      
+      {/* Add New Account Modal */}
+      {showAddAccountModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="glass rounded-2xl p-8 w-full max-w-md mx-auto">
+            <h2 className="text-2xl font-bold mb-6 text-primary-foreground">새 계정 추가</h2>
+            <form onSubmit={handleAddAccountSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1" htmlFor="add-uid">
+                  사용자명 (ID)
+                </label>
+                <input
+                  type="text"
+                  id="add-uid"
+                  className="w-full px-4 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  value={newAccount.uid}
+                  onChange={(e) => setNewAccount({ ...newAccount, uid: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1" htmlFor="add-uemail">
+                  이메일
+                </label>
+                <input
+                  type="email"
+                  id="add-uemail"
+                  className="w-full px-4 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  value={newAccount.uemail}
+                  onChange={(e) => setNewAccount({ ...newAccount, uemail: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1" htmlFor="add-uname">
+                  이름 (Name)
+                </label>
+                <input
+                  type="text"
+                  id="add-uname"
+                  className="w-full px-4 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  value={newAccount.uname}
+                  onChange={(e) => setNewAccount({ ...newAccount, uname: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1" htmlFor="add-password">
+                  비밀번호
+                </label>
+                <input
+                  type="password"
+                  id="add-password"
+                  className="w-full px-4 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  value={newAccount.password}
+                  onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1" htmlFor="add-level">
+                  역할
+                </label>
+                <select
+                  id="add-level"
+                  className="w-full px-4 py-2 bg-muted/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  value={newAccount.level}
+                  onChange={(e) => setNewAccount({ ...newAccount, level: e.target.value as AccountType['level'] })}
+                  required
+                >
+                  <option value="viewer">뷰어</option>
+                  <option value="manager">매니저</option>
+                  <option value="admin">관리자</option>
+                </select>
+              </div>
+              {addAccountError && (
+                <p className="text-red-500 text-sm mt-2">{addAccountError}</p>
+              )}
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddAccountModal(false)}
+                  className="px-4 py-2 rounded-xl text-muted-foreground hover:bg-muted/50 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={addAccountLoading}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {addAccountLoading ? '추가 중...' : '계정 추가'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

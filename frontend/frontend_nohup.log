@@ -3,10 +3,9 @@
 > vite --port 3002
 
 
-  VITE v4.5.14  ready in 125 ms
+  VITE v4.5.14  ready in 129 ms
 
   ➜  Local:   http://localhost:3002/
   ➜  Network: http://192.168.150.19:3002/
-[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-(node:63222) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(node:37672) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)

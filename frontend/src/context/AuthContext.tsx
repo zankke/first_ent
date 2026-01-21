@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       const response = await axios.post(
-        'http://localhost:5002/api/auth/verify',
+        '/api/auth/verify',
         { token: session.access_token },
         {
           headers: {

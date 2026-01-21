@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from backend.app import db
+from ..app import db
 from backend.models import Activity, Artist, Staff
 from datetime import datetime
 

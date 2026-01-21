@@ -111,7 +111,7 @@ services:
       MYSQL_ROOT_PASSWORD: qpflxktm(*)!#%
       MYSQL_DATABASE: first_ent
     ports:
-      - "3307:3306"
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -266,7 +266,7 @@ INSERT INTO accounts (username, email, password_hash, role) VALUES
 ('admin', 'admin@firstent.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J7v5Q5K2', 'admin');
 
 INSERT INTO artists (name, real_name, nationality, agency, status) VALUES 
-('Sample Artist', '홍길동', 'Korea', 'First Entertainment', 'active');
+('Sample Artist', '홍길동', 'Korea', 'theProjectCompany', 'active');
 
 INSERT INTO channels (artist_id, platform, channel_id, channel_name, follower_count) VALUES 
 (1, 'instagram', 'sample_artist_ig', 'Sample Artist Instagram', 10000),
@@ -297,7 +297,7 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
         'DATABASE_URL', 
-        'mysql+pymysql://root:qpflxktm(*)!#%@localhost:3307/first_ent'
+        'mysql+pymysql://root:qpflxktm(*)!#%@localhost:3306/first_ent'
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
@@ -320,7 +320,7 @@ EOF
 # 환경 변수 파일
 cat > backend/.env << 'EOF'
 SECRET_KEY=your-secret-key-here
-DATABASE_URL=mysql+pymysql://first_ent_user:first_ent_password@localhost:3307/first_ent
+DATABASE_URL=mysql+pymysql://first_ent_user:first_ent_password@localhost:3306/first_ent
 FLASK_ENV=development
 FLASK_DEBUG=True
 EOF

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from backend.app import db
+from ..app import db
 from backend.models import Artist, Channel, ChannelStat, News # Assuming these models exist
 from sqlalchemy import func
 

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from backend.app import db
+from ..app import db
 from backend.models import News, Artist
 from backend.services.news_crawler import NewsCrawler
 from backend.services.scheduler import news_scheduler
