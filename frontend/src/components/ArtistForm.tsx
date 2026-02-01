@@ -37,7 +37,7 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
         category_id: artist.category_id || '',
         platform: artist.platform || '',
         social_media_url: artist.social_media_url || '',
-        guarantee_krw: artist.guarantee_krw || '',
+        guarantee_krw: artist.guarantee_krw !== null && artist.guarantee_krw !== undefined ? String(artist.guarantee_krw) : '',
       });
       if (artist.profile_photo) {
         setImagePreviews([artist.profile_photo]);

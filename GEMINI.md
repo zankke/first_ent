@@ -10,6 +10,7 @@ This project is an internal system designed to register, manage, and view inform
 5.  **Board Management**: Create and manage 게시판 (bulletin boards).
 6.  **API Key Management**: Securely manage API keys for various services (e.g., Instagram, YouTube, Perplexity).
 7.  **Database Configuration Management**: Manage database connection settings.
+8.  **Pagination Support**: Full-stack pagination implemented for 'Artist Management' and 'News Monitoring' using SQLAlchemy's `paginate` on the backend and a reusable `Pagination` component on the frontend.
 
 ## Architecture:
 *   **Frontend**: Streamlit, streamlit_antd_components, TailwindCSS, Bootstrap

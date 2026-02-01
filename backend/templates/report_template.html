@@ -7,34 +7,209 @@
     <link rel="stylesheet" href="{{ css_path }}">
 </head>
 <body>
-    <div class="report-container">
-        <!-- Cover Page (optional, conditional) -->
-        {% if cover_page %}
-        <div class="cover-page">
-            <img src="{{ logo_path }}" alt="Company Logo" class="cover-logo">
+    <!-- Cover Page -->
+    <div class="page cover-page">
+        <div class="cover-header">
+            <p>Confidential Artist Analysis</p>
             <h1>{{ report_title }}</h1>
-            <h2>Artist Report: {{ artist_name }}</h2>
-            <p class="date">{{ generation_date }}</p>
-            <p class="author">{{ author_name }}</p>
         </div>
-        {% endif %}
+        
+        <div class="cover-footer">
+            <div class="cover-meta">
+                <div>
+                    <label>Preparation Date</label>
+                    <span>{{ generation_date }}</span>
+                </div>
+                <div>
+                    <label>Subject(s)</label>
+                    <span>{{ artist_names_summary }}</span>
+                </div>
+            </div>
+            <div class="cover-brand">
+                <p style="font-weight: 700; color: var(--primary);">{{ author_name }}</p>
+            </div>
+        </div>
+    </div>
 
-        <!-- Main Content Pages -->
-        {% for page in pages %}
+    <!-- Artist Reports Loop -->
+    {% for artist_report in artist_reports %}
+        <!-- Artist Page 1: Overview -->
         <div class="page">
             <header class="page-header">
-                <span class="header-title">{{ header_text }}</span>
-                <span class="header-logo">{% if small_logo_path %}<img src="{{ small_logo_path }}" alt="Logo">{% endif %}</span>
+                <span class="header-title">Artist Professional Profile</span>
+                <span class="header-tag">{{ artist_report.artist.name }}</span>
             </header>
-            <main class="page-content">
-                {{ page.content | safe }} {# Dynamic content for each page #}
-            </main>
+            
+            <div class="artist-section-header">
+                <div class="profile-img-container">
+                    <img src="{{ artist_report.profile_photo_url }}" alt="{{ artist_report.artist.name }}">
+                </div>
+                <div class="artist-main-info">
+                    <div class="artist-name-row">
+                        <h2>{{ artist_report.artist.name }}</h2>
+                        <span class="artist-eng-name">{{ artist_report.artist.eng_name or '' }}</span>
+                    </div>
+                    
+                    <div class="info-grid">
+                        <div class="info-item"><label>Birth Date</label><span>{{ artist_report.artist.birth_date }}</span></div>
+                        <div class="info-item"><label>Debut</label><span>{{ artist_report.artist.debut_date or 'N/A' }}</span></div>
+                        <div class="info-item"><label>Agency</label><span>{{ artist_report.artist.current_agency_name or 'N/A' }}</span></div>
+                        <div class="info-item"><label>Nationality</label><span>{{ artist_report.artist.nationality or 'N/A' }}</span></div>
+                        <div class="info-item"><label>Height</label><span>{{ artist_report.artist.height_cm or 'N/A' }} cm</span></div>
+                        <div class="info-item"><label>Gender</label><span>{{ artist_report.artist.gender or 'N/A' }}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <section>
+                <h3>Social Media Performance</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Platform</th>
+                            <th>Channel Name</th>
+                            <th>Followers</th>
+                            <th>Engagement</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in artist_report.channel_stats %}
+                        <tr>
+                            <td style="font-weight: 600;">{{ stat.platform }}</td>
+                            <td>{{ stat.name }}</td>
+                            <td>{{ "{:,}".format(stat.follower_count) }}</td>
+                            <td>{{ "{:.2f}%".format(stat.engagement_rate) }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not artist_report.channel_stats %}
+                        <tr><td colspan="4" style="text-align: center; color: var(--slate-400);">No social media data recorded</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </section>
+
             <footer class="page-footer">
-                <span class="footer-text">{{ footer_text }}</span>
-                <span class="page-number">{{ page.number }}</span>
+                <span>{{ footer_text }}</span>
+                <span>Page {{ loop.index0 * 3 + 2 }}</span>
             </footer>
         </div>
-        {% endfor %}
-    </div>
+
+        <!-- Artist Page 2: Activities -->
+        <div class="page">
+            <header class="page-header">
+                <span class="header-title">Career & Filmography</span>
+                <span class="header-tag">{{ artist_report.artist.name }}</span>
+            </header>
+
+            <section>
+                <h3>Filmography & Broadcast</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Role/Type</th>
+                            <th>Period</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for act in artist_report.activities_broadcast %}
+                        <tr>
+                            <td style="font-weight: 600;">{{ act.activity_name }}</td>
+                            <td>{{ act.activity_type }}</td>
+                            <td>{{ act.start_time.strftime('%Y.%m') if act.start_time else '' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not artist_report.activities_broadcast %}
+                        <tr><td colspan="3" style="text-align: center; color: var(--slate-400);">No broadcast data recorded</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h3>Advertising & Endorsements</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Brand / Campaign</th>
+                            <th>Category</th>
+                            <th>Period</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for act in artist_report.activities_cf %}
+                        <tr>
+                            <td style="font-weight: 600;">{{ act.activity_name }}</td>
+                            <td>{{ act.activity_type }}</td>
+                            <td>{{ act.start_time.strftime('%Y.%m') if act.start_time else '' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not artist_report.activities_cf %}
+                        <tr><td colspan="3" style="text-align: center; color: var(--slate-400);">No advertising data recorded</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </section>
+
+            <footer class="page-footer">
+                <span>{{ footer_text }}</span>
+                <span>Page {{ loop.index0 * 3 + 3 }}</span>
+            </footer>
+        </div>
+
+        <!-- Artist Page 3: Media & Bio -->
+        <div class="page">
+            <header class="page-header">
+                <span class="header-title">Media Monitoring & Insights</span>
+                <span class="header-tag">{{ artist_report.artist.name }}</span>
+            </header>
+
+            <section>
+                <h3>Recent Media Highlights</h3>
+                <div class="news-grid">
+                    {% for news in artist_report.news %}
+                    <div class="news-card">
+                        <div class="news-card-header">
+                            <span>{{ news.media_name or news.source }}</span>
+                            <span>{{ news.published_at.strftime('%Y-%m-%d') }}</span>
+                        </div>
+                        <div class="news-title">{{ news.title }}</div>
+                        <div class="news-snippet">
+                            <span class="sentiment-badge sentiment-{{ news.sentiment.lower() }}">{{ news.sentiment }}</span>
+                            {{ news.content[:180] }}...
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not artist_report.news %}
+                    <p style="text-align: center; color: var(--slate-400);">No recent news articles available</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section>
+                <h3>Biography Summary</h3>
+                <div class="bio-box">
+                    {{ artist_report.artist.wiki_summary or 'No biography summary available.' }}
+                </div>
+            </section>
+
+            {% if artist_report.wordcloud_image %}
+            <section>
+                <h3>Media Sentiment & Key Topics</h3>
+                <div class="wordcloud-container" style="text-align: center; margin-top: 20px;">
+                    <img src="{{ artist_report.wordcloud_image }}" alt="News Word Cloud" style="max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--slate-100);">
+                    <p style="font-size: 9pt; color: var(--slate-500); margin-top: 10px; font-style: italic;">
+                        Visual analysis based on recent media coverage and top keywords.
+                    </p>
+                </div>
+            </section>
+            {% endif %}
+
+            <footer class="page-footer">
+                <span>{{ footer_text }}</span>
+                <span>Page {{ loop.index0 * 3 + 4 }}</span>
+            </footer>
+        </div>
+    {% endfor %}
 </body>
 </html>

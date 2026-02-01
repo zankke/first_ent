@@ -29,7 +29,7 @@ const Header = () => {
     <header className="glass rounded-2xl m-6 mb-0 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h2 className="text-2xl font-bold gradient-text">[FAMS_v1.0] FirstEnt Artist Management System</h2>
+          <h2 className="text-2xl font-bold gradient-text">[TAMS_v1.0] Artist Management System v1.0</h2>
         </div>
         
         <div className="flex items-center space-x-4">

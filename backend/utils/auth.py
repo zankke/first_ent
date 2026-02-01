@@ -8,20 +8,47 @@ from flask import request, jsonify, g, current_app
 from backend.models import Account
 import logging
 import jwt
-import requests # Added import for requests
+from datetime import datetime, timedelta, timezone # Updated import
 
+# Define JWT expiration time
+JWT_EXP_DELTA_SECONDS = 3600 * 24 # Increase to 24 hours for better DX
 
-def verify_supabase_token(token):
+def generate_auth_token(user_email, user_id, user_level):
     """
-    Supabase 액세스 토큰 검증
-    JWT 토큰을 디코딩하여 사용자 이메일 추출
+    내부 JWT 토큰 생성
+    Args:
+        user_email (str): 사용자의 이메일
+        user_id (int): 사용자의 UQID
+        user_level (str): 사용자의 권한 레벨
+    Returns:
+        str: 생성된 JWT 토큰
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        payload = {
+            'exp': now + timedelta(seconds=JWT_EXP_DELTA_SECONDS),
+            'iat': now,
+            'sub': str(user_id),
+            'email': user_email,
+            'level': user_level
+        }
+        return jwt.encode(
+            payload,
+            current_app.config['SECRET_KEY'],
+            algorithm='HS256'
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error generating auth token: {e}")
+        return None
+
+def decode_auth_token(token):
+    """
+    내부 JWT 토큰 검증 및 디코딩
     Returns: (is_valid, user_email, error_message)
     """
-
     try:
-        # Assuming the token is an app-issued JWT, verify it with the app's SECRET_KEY
-        # If it's a Supabase token, it would need a different verification mechanism
-        payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+        # Add leeway to handle minor clock skew between environments
+        payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'], leeway=30)
         user_email = payload.get('email')
         
         if user_email:
@@ -31,56 +58,10 @@ def verify_supabase_token(token):
             
     except jwt.ExpiredSignatureError:
         return False, None, "토큰이 만료되었습니다."
-    except jwt.InvalidTokenError:
-        # Fallback for Supabase token verification if local JWT verification fails
-        # This part will be executed if the token is not a locally issued JWT
-        # and might be a Supabase token.
-        supabase_url = os.getenv('SUPABASE_URL')
-        
-        # DEBUG: Always allow specific dev token in development
-        if os.getenv('FLASK_ENV') == 'development':
-             current_app.logger.debug("Development mode: attempting fallback verification")
-             # You might want to inspect the token content here if possible, or just default to admin
-             return True, 'admin@firstent.com', None
-        
-        if not supabase_url: # Still no URL, and not in dev fallback, so it's an error
-                return False, None, "Supabase URL이 설정되지 않았습니다."
-
-        # Attempt Supabase API verification
-        supabase_anon_key = os.getenv('SUPABASE_ANON_KEY', '')
-        headers = {
-            'Authorization': f'Bearer {token}',
-            'apikey': supabase_anon_key
-        }
-        
-        try:
-            response = requests.get(
-                f'{supabase_url}/auth/v1/user',
-                headers=headers,
-                timeout=5
-            )
-            
-            if response.status_code == 200:
-                user_data = response.json()
-                user_email = user_data.get('email')
-                if user_email:
-                    return True, user_email, None
-                else:
-                    return False, None, "토큰에 이메일 정보가 없습니다."
-            else:
-                if os.getenv('FLASK_ENV') == 'development':
-                    return True, 'admin@firstent.com', None
-                return False, None, f"토큰 검증 실패: {response.status_code}"
-        except Exception as e:
-             current_app.logger.error(f"Supabase verification error: {e}")
-             if os.getenv('FLASK_ENV') == 'development':
-                return True, 'admin@firstent.com', None
-             return False, None, f"Supabase 연결 오류: {e}"
-            
+    except jwt.InvalidTokenError as e:
+        return False, None, f"유효하지 않은 토큰입니다: {e}"
     except Exception as e:
-        current_app.logger.exception(f"Unexpected error during token verification:")
-        if os.getenv('FLASK_ENV') == 'development':
-            return True, 'admin@firstent.com', None
+        current_app.logger.exception(f"Unexpected error during token decoding:")
         return False, None, f"토큰 검증 중 오류 발생: {str(e)}"
 
 
@@ -116,6 +97,17 @@ def get_user_permission(email):
     account = get_account_by_email(email)
     
     if not account:
+        # Check for superadmin seeding in development
+        if os.getenv('FLASK_ENV') == 'development' and email == 'devops@sfai.im':
+            # This is a temporary bypass for devops user during development
+            # A real implementation would seed this user or handle it differently
+            current_app.logger.warning("Development bypass: 'devops@sfai.im' assumed to be active admin.")
+            return {
+                'account': None, # No actual account object
+                'level': 'admin',
+                'status': 'Y',
+                'has_permission': True
+            }
         return {
             'account': None,
             'level': None,
@@ -136,7 +128,7 @@ def get_user_permission(email):
 def require_auth(f):
     """
     인증이 필요한 엔드포인트 데코레이터
-    Supabase 토큰 검증 후 Account 권한 확인
+    JWT 토큰 검증 후 Account 권한 확인
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -151,8 +143,8 @@ def require_auth(f):
         
         token = auth_header.split(' ')[1]
         
-        # Supabase 토큰 검증
-        is_valid, user_email, error = verify_supabase_token(token)
+        # 내부 토큰 검증
+        is_valid, user_email, error = decode_auth_token(token)
         
         if not is_valid:
             current_app.logger.warning(f"Token verification failed for {request.path}: {error}")
@@ -202,7 +194,7 @@ def require_role(*allowed_levels):
                 return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
             
             token = auth_header.split(' ')[1]
-            is_valid, user_email, error = verify_supabase_token(token)
+            is_valid, user_email, error = decode_auth_token(token)
             
             if not is_valid:
                 return jsonify({'error': error or '토큰 검증 실패'}), 401

@@ -47,9 +47,9 @@ const Signup: React.FC = () => {
     <div className="flex-1 flex items-center justify-center p-4">
       <Card className="w-[350px] rounded-2xl shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-foreground">FAMS v1.0</CardTitle>
+          <CardTitle className="text-3xl font-bold text-foreground">TAMS v1.0</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Create your FAMS v1.0 account
+            Create your TAMS v1.0 account
           </CardDescription>
         </CardHeader>
         <CardContent>

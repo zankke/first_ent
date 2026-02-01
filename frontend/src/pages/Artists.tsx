@@ -41,8 +41,13 @@ const Artists = () => {
   const [currentPage, setCurrentPage] = useState(1) // New state for current page
   const [totalPages, setTotalPages] = useState(1)     // New state for total pages
   const [perPage, setPerPage] = useState(10)           // New state for items per page
+  const [showSelectionMenu, setShowSelectionMenu] = useState(false)
 
   const location = useLocation()
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterStatus, filterGender, filterNationality, filterCategory, filterGenre])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -104,6 +109,16 @@ const Artists = () => {
   const handleArtistAdded = () => {
     fetchArtists()
   }
+
+  const handleSelectAll = () => {
+    setSelectedArtistIds(artists.map((artist: any) => artist.id));
+    setShowSelectionMenu(false);
+  };
+
+  const handleUnselectAll = () => {
+    setSelectedArtistIds([]);
+    setShowSelectionMenu(false);
+  };
 
   const handleSelectArtist = (artistId: number) => {
     console.log("DEBUG: handleSelectArtist - artistId:", artistId);
@@ -363,7 +378,35 @@ const Artists = () => {
           <table className="w-full">
             <thead className="border-b border-border">
               <tr>
-                <th className="text-left p-6 font-medium text-muted-foreground">선택</th>
+                <th 
+                  className="text-left p-6 font-medium text-muted-foreground relative"
+                  onMouseEnter={() => setShowSelectionMenu(true)}
+                  onMouseLeave={() => setShowSelectionMenu(false)}
+                >
+                  <div className="flex items-center space-x-1 cursor-pointer hover:text-foreground transition-colors">
+                    <span>선택</span>
+                    <Filter className="w-3 h-3" />
+                  </div>
+                  
+                  {showSelectionMenu && (
+                    <div className="absolute top-[70%] left-6 z-20 w-32 bg-slate-800 border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-1 flex flex-col">
+                        <button 
+                          onClick={handleSelectAll}
+                          className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-primary/20 hover:text-primary rounded-lg transition-colors text-white"
+                        >
+                          전체 선택
+                        </button>
+                        <button 
+                          onClick={handleUnselectAll}
+                          className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-red-500/20 hover:text-red-500 rounded-lg transition-colors text-white"
+                        >
+                          선택 해제
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </th>
                 <th className="text-left p-6 font-medium text-muted-foreground">아티스트</th>
                 <th className="text-left p-6 font-medium text-muted-foreground">생년월일</th>
                 <th className="text-left p-6 font-medium text-muted-foreground">성별</th>
@@ -387,7 +430,7 @@ const Artists = () => {
                   <td className="p-6">
                     <div className="flex items-center space-x-3">
                       <img 
-                        src={artist.profile_photo || "https://via.placeholder.com/150/0000FF/FFFFFF?text=No+Image"} 
+                        src={artist.profile_photo ? (artist.profile_photo.startsWith('http') ? artist.profile_photo : `/api/artists/profile-photos/${artist.profile_photo.split('/').pop()}`) : "https://via.placeholder.com/150/0000FF/FFFFFF?text=No+Image"} 
                         alt={artist.name} 
                         className="w-12 h-12 object-cover rounded-xl"
                         onError={(e) => {

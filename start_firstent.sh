@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# FirstEnt v2: 통합 프로젝트 시작 최적화 스크립트
+# theProjectCompany v2: 통합 프로젝트 시작 최적화 스크립트
 # UTF-8 (한글 깨짐 방지)
 export LANG=ko_KR.UTF-8
 export LC_ALL=ko_KR.UTF-8
@@ -32,7 +32,7 @@ choose_and_assign_app_port() {
     done
 }
 
-echo -e "🚀 FirstEnt v2 시작\n📁 ROOT: $PROJECT_ROOT"
+echo -e "🚀 theProjectCompany v2 시작\n📁 ROOT: $PROJECT_ROOT"
 
 # Function to wait for MySQL to be ready
 wait_for_db() {
@@ -226,8 +226,28 @@ echo "🚀 프론트엔드 시작..."
 cd "$PROJECT_ROOT"
 FRONTEND_PORT=3002 # Hardcode frontend port to 3002
 cd "$PROJECT_ROOT/frontend" # Ensure we are in the frontend directory
+
+# Extract VITE_ environment variables from the project root's .env file
+VITE_ENV_VARS=""
+FRONTEND_ROOT_ENV_FILE="$PROJECT_ROOT/.env"
+if [ -f "$FRONTEND_ROOT_ENV_FILE" ]; then
+    echo "   📋 프로젝트 루트 .env 파일에서 VITE_ 환경 변수 추출 중..."
+    while IFS='=' read -r k v; do
+        # Only extract VITE_ prefixed variables, and handle comments/empty lines
+        if [[ "$k" =~ ^VITE_ ]] && [[ ! -z "$v" ]]; then
+            # Remove quotes from value for direct assignment
+            CLEAN_V=$(echo "$v" | tr -d '"' | tr -d "'" | xargs)
+            VITE_ENV_VARS+=" $k=\"$CLEAN_V\""
+        fi
+    done < <(grep -E '^(VITE_)' "$FRONTEND_ROOT_ENV_FILE" | sed 's/#.*//' | sed '/^\s*$/d')
+    echo "   ✅ VITE_ 환경 변수 추출 완료."
+else
+    echo "   ⚠️  프로젝트 루트 .env 파일 없음. 일부 프론트엔드 기능이 작동하지 않을 수 있습니다."
+fi
+
 echo "Starting frontend server on port $FRONTEND_PORT using nohup (detached mode)"
-nohup npm run dev -- --port "$FRONTEND_PORT" > "$PROJECT_ROOT/frontend/frontend_nohup.log" 2>&1 &
+# Explicitly pass VITE_ environment variables to npm run dev
+nohup $VITE_ENV_VARS npm run dev -- --port "$FRONTEND_PORT" > "$PROJECT_ROOT/frontend/frontend_nohup.log" 2>&1 &
 
 for _ in {1..40}; do lsof -nP -iTCP:$FRONTEND_PORT -sTCP:LISTEN &>/dev/null && { echo "   ✅ 프론트엔드 준비 ($FRONTEND_PORT)"; break; } ; sleep 0.5; done
 

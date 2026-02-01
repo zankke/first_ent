@@ -2,10 +2,15 @@
 > artist-management-frontend@0.0.0 dev
 > vite --port 3002
 
+--- Vite Config Debug ---
+Mode: development
+VITE_SUPABASE_URL from process.env: undefined
+VITE_SUPABASE_ANON_KEY from process.env: undefined
+--- End Vite Config Debug ---
+Port 3002 is in use, trying another one...
+Port 3003 is in use, trying another one...
 
-  VITE v4.5.14  ready in 129 ms
+  VITE v4.5.14  ready in 140 ms
 
-  ➜  Local:   http://localhost:3002/
-  ➜  Network: http://192.168.150.19:3002/
-(node:37672) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
-(Use `node --trace-deprecation ...` to show where the warning was created)
+  ➜  Local:   http://localhost:3004/
+  ➜  Network: http://192.168.0.105:3004/

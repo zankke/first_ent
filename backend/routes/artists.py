@@ -1,7 +1,7 @@
-from flask import Blueprint, request, jsonify, send_file, render_template, url_for
+from flask import Blueprint, request, jsonify, send_file, render_template, url_for, send_from_directory
 from ..app import db
 from backend.models.artist import Artist
-from backend.models import Channel, ChannelStat, News
+from backend.models import Channel, ChannelStat, News, Activity
 
 from datetime import datetime, date
 from reportlab.lib.pagesizes import letter
@@ -15,7 +15,9 @@ import logging
 from markdown import markdown # Import markdown library
 import requests # Import requests library
 from backend.utils.wikipedia_utils import get_artist_info_from_wikipedia # New import
+from backend.utils.gemini_utils import search_artist_ai # Added Gemini import
 from backend.utils.auth import require_role # Added import
+from backend.utils.wordcloud_generator import generate_wordcloud_for_artist, generate_wordcloud_from_text # Import wordcloud generator
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'public', 'images', 'artists', 'profile')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -25,30 +27,85 @@ logger = logging.getLogger(__name__)
 
 @bp.route('/search_and_generate_sql', methods=['GET'])
 def search_and_generate_sql():
-    artist_name = request.args.get('artist_name')
-    if not artist_name:
-        return jsonify({'error': 'Artist name is required.'}), 400
+    try:
+        artist_name = request.args.get('artist_name')
+        if not artist_name:
+            return jsonify({'error': 'Artist name is required.'}), 400
 
-    artist_data = get_artist_info_from_wikipedia(artist_name)
-    if not artist_data:
-        return jsonify({'message': f'Could not find information for {artist_name} on Wikipedia.'}), 404
+        # Check if artist already exists in DB
+        try:
+            existing_artist = Artist.query.filter_by(name=artist_name).first()
+        except Exception as db_err:
+            logger.error(f"Database error while searching for artist {artist_name}: {db_err}", exc_info=True)
+            return jsonify({'error': f'Database error: {str(db_err)}'}), 500
 
-    # Check if artist already exists in DB
-    existing_artist = Artist.query.filter_by(name=artist_name).first()
+        artist_exists_flag = existing_artist is not None
+        
+        # Try AI Search first
+        logger.info(f"Searching Gemini AI for artist: {artist_name} (is_update={artist_exists_flag})")
+        ai_result = search_artist_ai(artist_name, is_update=artist_exists_flag)
+        
+        # Determine data source for wordcloud
+        wordcloud_text = ""
+        artist_data = {}
+        sources = []
+        sql_query = ""
+        python_script = None
 
-    sql_query = ""
-    if existing_artist:
-        sql_query = generate_update_sql(existing_artist.id, artist_data)
-        artist_exists_flag = True
-    else:
-        sql_query = generate_insert_sql(artist_data)
-        artist_exists_flag = False
-    
-    return jsonify({
-        'sql_query': sql_query,
-        'artist_data': artist_data,
-        'artist_exists': artist_exists_flag
-    })
+        if ai_result:
+            logger.info(f"Gemini AI result retrieved for {artist_name}")
+            artist_data = ai_result['profile']
+            sql_query = ai_result['sql_query']
+            python_script = ai_result['python_script']
+            sources = ai_result['sources']
+            
+            # Combine summary and source titles for wordcloud
+            wordcloud_text = (artist_data.get('wiki_summary') or "") + " " + " ".join([s['title'] for s in sources])
+
+        else:
+            # Fallback to Wikipedia
+            logger.info(f"Gemini AI failed, falling back to Wikipedia for artist: {artist_name}")
+            artist_data = get_artist_info_from_wikipedia(artist_name)
+            
+            if not artist_data:
+                logger.warning(f"No Wikipedia data found for artist: {artist_name}")
+                return jsonify({'message': f'Could not find information for {artist_name} on Wikipedia or AI.'}), 404
+
+            try:
+                if existing_artist:
+                    sql_query = generate_update_sql(existing_artist.id, artist_data)
+                else:
+                    sql_query = generate_insert_sql(artist_data)
+            except Exception as sql_err:
+                logger.error(f"Error generating SQL for {artist_name}: {sql_err}", exc_info=True)
+                return jsonify({'error': f'SQL Generation error: {str(sql_err)}'}), 500
+            
+            sources = artist_data.get('sources', [])
+            wordcloud_text = (artist_data.get('wiki_summary') or "") + " " + " ".join([s['title'] for s in sources])
+
+        # Generate Wordcloud
+        wordcloud_image = None
+        top_keywords = []
+        try:
+            if wordcloud_text:
+                wordcloud_image, top_keywords = generate_wordcloud_from_text(wordcloud_text)
+        except Exception as wc_err:
+            logger.error(f"Error generating wordcloud: {wc_err}")
+            # Non-critical, continue without wordcloud
+
+        return jsonify({
+            'sql_query': sql_query,
+            'python_script': python_script,
+            'artist_data': artist_data,
+            'artist_exists': artist_exists_flag,
+            'sources': sources,
+            'wordcloud_image': wordcloud_image,
+            'top_keywords': top_keywords
+        })
+
+    except Exception as e:
+        logger.error(f"Unexpected error in search_and_generate_sql: {e}", exc_info=True)
+        return jsonify({'error': f'Internal Server Error: {str(e)}'}), 500
 
 def generate_insert_sql(data):
     columns = []
@@ -60,8 +117,8 @@ def generate_insert_sql(data):
     data.setdefault('height_cm', 'NULL')
     data.setdefault('debut_date', 'NULL')
     data.setdefault('debut_title', 'NULL')
-    data.setdefault('recent_activity_category', 'NULL')
-    data.setdefault('recent_activity_name', 'NULL')
+    data.setdefault('recent_activity_category', 'UNKNOWN')
+    data.setdefault('recent_activity_name', 'UNKNOWN')
     data.setdefault('genre', 'NULL')
     data.setdefault('agency_id', 'NULL')
     data.setdefault('current_agency_name', 'NULL')
@@ -109,8 +166,8 @@ def generate_update_sql(artist_id, data):
         'height_cm': 'NULL',
         'debut_date': 'NULL',
         'debut_title': 'NULL',
-        'recent_activity_category': 'NULL',
-        'recent_activity_name': 'NULL',
+        'recent_activity_category': 'UNKNOWN',
+        'recent_activity_name': 'UNKNOWN',
         'genre': 'NULL',
         'agency_id': 'NULL',
         'current_agency_name': 'NULL',
@@ -174,11 +231,16 @@ def serve_profile_photo(filename):
 
 @bp.route('/', methods=['GET'])
 def get_artists():
-    """모든 아티스트 조회"""
+    """모든 아티스트 조회 (페이지네이션 포함)"""
     search_query = request.args.get('query')
     filter_status = request.args.get('status')
     filter_gender = request.args.get('gender')
     filter_nationality = request.args.get('nationality')
+    filter_genre = request.args.get('genre')
+    filter_category = request.args.get('category_id', type=int)
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
 
     artists_query = Artist.query
 
@@ -191,22 +253,31 @@ def get_artists():
                 Artist.nationality.ilike(search_pattern)
             )
         )
-    compiled_query = artists_query.statement.compile(compile_kwargs={"literal_binds": True})
-    logger.debug(f"Artist search SQL query: {compiled_query}")
+    
     if filter_status:
         artists_query = artists_query.filter(Artist.status == filter_status)
     if filter_gender:
         artists_query = artists_query.filter(Artist.gender == filter_gender)
     if filter_nationality:
-        artists_query = artists_query.filter(Artist.nationality == filter_nationality)
+        # Check if filter_nationality is 'KOREAN' or 'FOREIGN' and map to is_korean
+        if filter_nationality == 'KOREAN':
+            artists_query = artists_query.filter(Artist.is_korean == True)
+        elif filter_nationality == 'FOREIGN':
+            artists_query = artists_query.filter(Artist.is_korean == False)
+    if filter_genre:
+        artists_query = artists_query.filter(Artist.genre.ilike(f'%{filter_genre}%'))
+    if filter_category:
+        artists_query = artists_query.filter(Artist.category_id == filter_category)
 
-    artists = artists_query.all()
+    # Apply pagination
+    pagination = artists_query.paginate(page=page, per_page=per_page, error_out=False)
+    artists = pagination.items
     
     return jsonify({
         'artists': [artist.to_dict() for artist in artists],
-        'total': len(artists),
-        'pages': 1,
-        'current_page': 1
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'current_page': pagination.page
     })
 
 @bp.route('/recent', methods=['GET'])
@@ -285,7 +356,8 @@ def create_artist():
         category_id=int(data['category_id']) if data.get('category_id') else None,
         platform=data.get('platform'),
         social_media_url=data.get('social_media_url'),
-        profile_photo=profile_photo_path
+        profile_photo=profile_photo_path,
+        guarantee_krw=int(data['guarantee_krw']) if data.get('guarantee_krw') else None
     )
 
     db.session.add(artist)
@@ -331,7 +403,7 @@ def update_artist(artist_id):
     artist.platform = data.get('platform', artist.platform)
     artist.social_media_url = data.get('social_media_url', artist.social_media_url)
     artist.profile_photo = profile_photo_path
-    artist.guarantee_krw = int(data['guarantee_krw']) if data.get('guarantee_krw') else None
+    artist.guarantee_krw = int(data['guarantee_krw']) if data.get('guarantee_krw') else artist.guarantee_krw
     
     db.session.commit()
     
@@ -340,430 +412,134 @@ def update_artist(artist_id):
 @bp.route('/report', methods=['POST'], strict_slashes=False)
 def generate_artist_report():
     """선택된 아티스트에 대한 보고서 생성"""
-    data = request.get_json()
-    artist_ids = data.get('artist_ids', [])
-    report_format = data.get('report_format', 'pdf') # 'pdf' or 'pptx'
+    try:
+        data = request.get_json()
+        artist_ids = data.get('artist_ids', [])
+        report_format = data.get('report_format', 'pdf') # 'pdf' or 'pptx'
 
-    print(f"DEBUG: Received artist_ids for report: {artist_ids}")
-    print(f"DEBUG: Received report_format: {report_format}")
+        if not artist_ids:
+            return jsonify({'error': '아티스트 ID가 제공되지 않았습니다.'}), 400
 
-    if not artist_ids:
-        print("DEBUG: No artist_ids provided, returning 400.")
-        return jsonify({'error': '아티스트 ID가 제공되지 않았습니다.'}), 400
+        artists = Artist.query.filter(Artist.id.in_(artist_ids)).all()
 
-    artists = Artist.query.filter(Artist.id.in_(artist_ids)).all()
+        if not artists:
+            return jsonify({'error': '선택된 아티스트를 찾을 수 없습니다.'}), 404
 
-    if not artists:
-        return jsonify({'error': '선택된 아티스트를 찾을 수 없습니다.'}), 404
-
-    if report_format == 'pdf': # This block will now handle Puppeteer-based PDF
-        # --- NEW PUPPETEER-BASED PDF GENERATION LOGIC ---
-        PUPPETEER_SERVICE_URL = "http://localhost:3001/generate-pdf" # Define Puppeteer service URL
-        try:
-            # Prepare data for rendering HTML template
-            artist = artists[0] # Already filtered to a single artist_id, so take the first
-            if not artist:
-                return jsonify({'error': 'No artist data available for report generation.'}), 404
-
-            # --- Fetch related data ---
-            artist_channels = Channel.query.filter_by(artist_id=artist.id).all()
+        if report_format == 'pdf':
+            PUPPETEER_SERVICE_URL = "http://localhost:3001/generate-pdf"
+            artist_reports_data = []
             
-            # Fetch latest stats for each channel
-            channel_stats_data = []
-            for channel in artist_channels:
-                latest_stat = ChannelStat.query.filter_by(channel_id=channel.id).order_by(ChannelStat.stat_date.desc()).first()
-                if latest_stat:
-                    channel_stats_data.append({
-                        'platform': channel.platform,
-                        'name': channel.channel_name,
-                        'url': channel.channel_url,
-                        'follower_count': latest_stat.follower_count,
-                        'engagement_rate': float(latest_stat.engagement_rate) if latest_stat.engagement_rate else 0.0
-                    })
+            for artist in artists:
+                # --- Fetch related data for each artist ---
+                artist_channels = Channel.query.filter_by(artist_id=artist.id).all()
+                channel_stats_data = []
+                for channel in artist_channels:
+                    latest_stat = ChannelStat.query.filter_by(channel_id=channel.id).order_by(ChannelStat.stat_date.desc()).first()
+                    if latest_stat:
+                        channel_stats_data.append({
+                            'platform': channel.platform,
+                            'name': channel.channel_name,
+                            'url': channel.channel_url,
+                            'follower_count': latest_stat.follower_count,
+                            'engagement_rate': float(latest_stat.engagement_rate) if latest_stat.engagement_rate else 0.0
+                        })
+                
+                recent_news_articles = News.query.filter_by(artist_id=artist.id).order_by(News.published_at.desc()).limit(4).all()
+                
+                activities_cf = []
+                activities_broadcast = []
+                try:
+                    all_activities = Activity.query.filter_by(artist_id=artist.id).order_by(Activity.start_time.desc()).all()
+                    
+                    # Enhanced filtering for Korean/English activity types
+                    activities_cf = [a for a in all_activities if a.activity_type and any(kw in a.activity_type.upper() for kw in ['CF', 'AD', '광고', 'BRAND'])]
+                    activities_broadcast = [a for a in all_activities if a.activity_type and any(kw in a.activity_type.upper() for kw in ['DRAMA', 'MOVIE', 'TV', '방송', '영화', '드라마'])]
+                except Exception as act_err:
+                    logger.warning(f"Could not fetch activities for artist {artist.name}: {act_err}")
+                    db.session.rollback() # Important: rollback to clear the failed state
+                    # Continue without activities if there's a schema issue
+
+                profile_photo_filename = os.path.basename(artist.profile_photo) if artist.profile_photo else 'default.png'
+                profile_photo_url = url_for('artists.serve_profile_photo', filename=profile_photo_filename, _external=True)
+
+                # Generate word cloud for news analysis
+                wordcloud_base64, top_keywords = generate_wordcloud_for_artist(artist.id)
+
+                artist_reports_data.append({
+                    'artist': artist,
+                    'channel_stats': channel_stats_data,
+                    'news': recent_news_articles,
+                    'activities_cf': activities_cf,
+                    'activities_broadcast': activities_broadcast,
+                    'profile_photo_url': profile_photo_url,
+                    'wordcloud_image': wordcloud_base64,
+                    'top_keywords': top_keywords
+                })
+
+            artist_names_str = ", ".join([a.name for a in artists])
             
-            # Fetch recent news
-            recent_news_articles = News.query.filter_by(artist_id=artist.id).order_by(News.published_at.desc()).limit(5).all()
-
-            # --- Fetch Activities ---
-            all_activities = Activity.query.filter_by(artist_id=artist.id).order_by(Activity.start_time.desc()).all()
-            activities_cf = [a for a in all_activities if a.activity_type and ('CF' in a.activity_type.upper() or 'AD' in a.activity_type.upper())]
-            activities_broadcast = [a for a in all_activities if a.activity_type and ('DRAMA' in a.activity_type.upper() or 'MOVIE' in a.activity_type.upper() or 'TV' in a.activity_type.upper())]
-            activities_other = [a for a in all_activities if a not in activities_cf and a not in activities_broadcast]
-
-            # --- Populate pages_data with comprehensive content ---
-            pages_data = []
-
-            # Page 1: Artist Overview and Social Media Performance
-            artist_bio_markdown = f"""
-            **Name:** {artist.name} ({artist.eng_name if artist.eng_name else 'N/A'})
-            **Birth Date:** {artist.birth_date.strftime('%Y-%m-%d')}
-            **Debut Date:** {artist.debut_date.strftime('%Y-%m-%d') if artist.debut_date else 'N/A'}
-            **Nationality:** {artist.nationality if artist.nationality else 'N/A'}
-            **Gender:** {artist.gender if artist.gender else 'N/A'}
-            **Status:** {artist.status if artist.status else 'N/A'}
-            **Genre:** {artist.genre if artist.genre else 'N/A'}
-            **Height (cm):** {artist.height_cm if artist.height_cm else 'N/A'}
-            **Guarantee (KRW):** {artist.guarantee_krw if artist.guarantee_krw else 'N/A'}
-            **Social Media URL:** {artist.social_media_url if artist.social_media_url else 'N/A'}
-            """
-            artist_bio_html = markdown(artist_bio_markdown)
-
-            profile_photo_filename = os.path.basename(artist.profile_photo) if artist.profile_photo else 'default.png'
-            profile_photo_url = url_for('artists.serve_profile_photo', filename=profile_photo_filename, _external=True)
-
-            page_1_content = f"""
-                <section class="overview-section">
-                    <div class="profile-header">
-                        <div class="profile-image-container">
-                             <img src="{profile_photo_url}" alt="{artist.name}" class="profile-image">
-                        </div>
-                        <div class="profile-info">
-                            <h3>Biography</h3>
-                            {artist_bio_html}
-                        </div>
-                    </div>
-                </section>
-                <section class="stats-section">
-                    <h2>Social Media Performance</h2>
-                    <table class="stats-table">
-                        <thead>
-                            <tr><th>Platform</th><th>Name</th><th>Followers</th><th>Engagement Rate</th></tr>
-                        </thead>
-                        <tbody>
-                            {''.join([f'''
-                            <tr>
-                                <td>{stat['platform']}</td>
-                                <td><a href="{stat['url']}">{stat['name']}</a></td>
-                                <td>{stat['follower_count']:,}</td>
-                                <td>{stat['engagement_rate']:.2f}%</td>
-                            </tr>''' for stat in channel_stats_data]) if channel_stats_data else '<tr><td colspan="4">No social media data available.</td></tr>'}
-                        </tbody>
-                    </table>
-                </section>
-            """
-            pages_data.append({'number': 1, 'content': page_1_content})
-            
-            # Page 2: Activities (Broadcast & CF)
-            # Helper to generate activity rows
-            def generate_activity_rows(activities):
-                if not activities: return '<tr><td colspan="3">No activities found.</td></tr>'
-                rows = []
-                for act in activities:
-                    start = act.start_time.strftime('%Y.%m') if act.start_time else ''
-                    end = act.end_time.strftime('%Y.%m') if act.end_time else ''
-                    period = f"{start} - {end}" if start or end else ''
-                    rows.append(f'''
-                        <tr>
-                            <td class="activity-name">{act.activity_name}</td>
-                            <td class="activity-type">{act.activity_type}</td>
-                            <td class="activity-period">{period}</td>
-                        </tr>
-                    ''')
-                return ''.join(rows)
-
-            page_2_content = f"""
-                <section class="activities-section">
-                    <div class="activity-group">
-                        <h2>Filmography (Broadcast & Movies)</h2>
-                        <table class="activity-table">
-                            <thead><tr><th>Title</th><th>Type</th><th>Period</th></tr></thead>
-                            <tbody>
-                                {generate_activity_rows(activities_broadcast)}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="activity-group">
-                        <h2>Advertising & Endorsements</h2>
-                        <table class="activity-table">
-                            <thead><tr><th>Brand/Campaign</th><th>Type</th><th>Period</th></tr></thead>
-                            <tbody>
-                                {generate_activity_rows(activities_cf)}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            """
-            pages_data.append({'number': 2, 'content': page_2_content})
-
-            # Page 3: Recent News & Media
-            page_3_content = f"""
-                <section class="news-section">
-                    <h2>Recent News & Media</h2>
-                    <div class="news-grid">
-                    {''.join([f'''
-                    <div class="news-card">
-                        <div class="news-header">
-                            <span class="news-source">{news.media_name if news.media_name else news.source}</span>
-                            <span class="news-date">{news.published_at.strftime('%Y-%m-%d') if news.published_at else 'N/A'}</span>
-                        </div>
-                        <h3 class="news-title"><a href="{news.url}">{news.title}</a></h3>
-                        <p class="news-sentiment">Sentiment: {news.sentiment}</p>
-                        <p class="news-snippet">{news.content[:200] + '...' if news.content else ''}</p>
-                    </div>''' for news in recent_news_articles]) if recent_news_articles else '<p>No recent news articles available.</p>'}
-                    </div>
-                </section>
-            """
-            pages_data.append({'number': 3, 'content': page_3_content})
-
-            # Render the HTML template (pass artist.eng_name to template)
             rendered_html = render_template(
                 'report_template.html',
-                report_title=f"{artist.eng_name if artist.eng_name else artist.name} Artist Report",
-                artist_name=artist.eng_name if artist.eng_name else artist.name,
+                report_title="Artist Performance Analysis",
+                artist_names_summary=artist_names_str,
                 generation_date=datetime.now().strftime('%Y-%m-%d'),
-                author_name="FirstEnt Management", # Updated author name
-                css_path=url_for('static', filename='css/report_styles.css'),
-                logo_path=url_for('static', filename='images/logo.png'), # Placeholder logo
-                small_logo_path=url_for('static', filename='images/small_logo.png'), # Placeholder small logo
-                cover_page=True, # Set to False if no cover page
-                pages=pages_data,
-                header_text=f"{artist.eng_name if artist.eng_name else artist.name} - Confidential",
-                footer_text="FirstEnt Management - Internal Report",
-                activities_cf=activities_cf, # Pass context though we used pages_data mostly
-                activities_broadcast=activities_broadcast,
-                activities_other=activities_other
+                author_name="theProjectCompany STRATEGIC ANALYSIS",
+                css_path=url_for('static', filename='css/report_styles.css', _external=True),
+                artist_reports=artist_reports_data,
+                footer_text="theProjectCompany MANAGEMENT - CONFIDENTIAL"
             )
 
-            # --- Send HTML to Puppeteer service ---
             response = requests.post(
                 PUPPETEER_SERVICE_URL,
                 json={'htmlContent': rendered_html},
-                timeout=60 # Timeout in seconds for Puppeteer to generate PDF
+                timeout=120
             )
-
-            response.raise_for_status() # Raise an exception for HTTP errors
-
-            pdf_buffer = BytesIO(response.content)
+            response.raise_for_status()
             
-            # Save the generated HTML to a temporary file for inspection (optional, remove in production)
-            temp_html_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                '..', 'temp', f'artist_report_{artist.id}.html'
-            )
-            os.makedirs(os.path.dirname(temp_html_path), exist_ok=True)
-            with open(temp_html_path, 'w', encoding='utf-8') as f:
-                f.write(rendered_html)
-            print(f"Generated HTML saved to: {temp_html_path}")
-
+            pdf_buffer = BytesIO(response.content)
             return send_file(
                 pdf_buffer,
-                download_name=f'artists_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf',
+                download_name=f'artist_report_{datetime.now().strftime("%Y%m%d")}.pdf',
                 mimetype='application/pdf'
             )
 
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"Could not connect to Puppeteer service: {e}", exc_info=True)
-            return jsonify({'error': 'PDF 생성 서비스에 연결할 수 없습니다.'}), 500
-        except requests.exceptions.Timeout:
-            logger.error(f"Puppeteer service timed out.", exc_info=True)
-            return jsonify({'error': 'PDF 생성 서비스 시간 초과.'}), 500
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error from Puppeteer service: {e}", exc_info=True)
-            return jsonify({'error': f'PDF 생성 서비스 오류: {e}'}), 500
-        except Exception as e:
-            logger.error(f"Error generating HTML report: {e}", exc_info=True)
-            return jsonify({'error': f'보고서 생성 중 오류 발생: {e}'}), 500
-    elif report_format == 'pptx':
-        from pptx.util import Inches, Pt
-        from pptx.dml.color import RGBColor
-        from PIL import Image as PImage # Alias to avoid conflict with reportlab.platypus.Image
-        prs = Presentation()
+        elif report_format == 'pptx':
+            from pptx import Presentation
+            from pptx.util import Inches, Pt
+            prs = Presentation()
 
-        for artist in artists:
-            # Cover Slide
-            slide_layout = prs.slide_layouts[0] # Title Slide layout
-            slide = prs.slides.add_slide(slide_layout)
-            title = slide.shapes.title
-            subtitle = slide.placeholders[1]
+            for artist in artists:
+                # Cover Slide
+                slide = prs.slides.add_slide(prs.slide_layouts[0])
+                slide.shapes.title.text = artist.name
+                slide.placeholders[1].text = "Artist Commercial Proposal"
 
-            title.text = artist.name
-            subtitle.text = "Artist Commercial Proposal"
+                if artist.profile_photo:
+                    image_full_path = os.path.join(UPLOAD_FOLDER, os.path.basename(artist.profile_photo))
+                    if os.path.exists(image_full_path):
+                        try:
+                            slide.shapes.add_picture(image_full_path, Inches(3), Inches(3), Inches(4), Inches(4))
+                        except: pass
 
-            if artist.profile_photo:
-                filename_from_profile_photo = os.path.basename(artist.profile_photo)
-                image_full_path = os.path.join(UPLOAD_FOLDER, filename_from_profile_photo)
-                if os.path.exists(image_full_path):
-                    try:
-                        # Get original image dimensions using PIL
-                        with PImage.open(image_full_path) as img_pil:
-                            original_width, original_height = img_pil.size
+                # Details Slide
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                slide.shapes.title.text = f"{artist.name} - Professional Profile"
+                
+                # Simple bullet points for PPTX
+                txBox = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(6), Inches(4))
+                tf = txBox.text_frame
+                tf.text = f"• Gender: {artist.gender}\n• Nationality: {artist.nationality}\n• Agency: {artist.current_agency_name}\n• Debut: {artist.debut_date}"
 
-                        # Define max dimensions for the slide
-                        max_width_ptx = Inches(4)
-                        max_height_ptx = Inches(4)
+            buffer = BytesIO()
+            prs.save(buffer)
+            buffer.seek(0)
+            return send_file(buffer, download_name=f'artist_report_{datetime.now().strftime("%Y%m%d")}.pptx', mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation')
 
-                        # Calculate aspect ratio
-                        aspect_ratio = original_height / original_width
+        return jsonify({'error': '지원되지 않는 보고서 형식입니다.'}), 400
 
-                        # Determine new dimensions while maintaining aspect ratio
-                        if original_width > original_height:
-                            new_width_ptx = max_width_ptx
-                            new_height_ptx = max_width_ptx * aspect_ratio
-                        else:
-                            new_height_ptx = max_height_ptx
-                            new_width_ptx = max_height_ptx / aspect_ratio
-                        
-                        # Ensure image fits within max bounds
-                        if new_width_ptx > max_width_ptx:
-                            new_width_ptx = max_width_ptx
-                            new_height_ptx = max_width_ptx * aspect_ratio
-                        if new_height_ptx > max_height_ptx:
-                            new_height_ptx = max_height_ptx
-                            new_width_ptx = max_height_ptx / aspect_ratio
-
-                        img_left = Inches(3)
-                        img_top = Inches(3)
-                        slide.shapes.add_picture(image_full_path, img_left, img_top, new_width_ptx, new_height_ptx)
-                    except Exception as e:
-                        print(f"WARNING: Error loading cover image for PPTX report: {e}")
-
-            # Artist Details Slide
-            slide_layout = prs.slide_layouts[5] # Title and Content layout
-            slide = prs.slides.add_slide(slide_layout)
-
-            title = slide.shapes.title
-            title.text = artist.name
-            title.text_frame.paragraphs[0].font.size = Pt(48)
-            title.text_frame.paragraphs[0].font.bold = True
-            title.text_frame.paragraphs[0].font.color.rgb = RGBColor(0xED, 0x71, 0x04) # Orange
-
-            subtitle.text = "Artist Commercial Proposal"
-            subtitle.text_frame.paragraphs[0].font.size = Pt(28)
-            subtitle.text_frame.paragraphs[0].font.color.rgb = RGBColor(0x36, 0x45, 0x4F) # Deep Navy
-
-            if artist.profile_photo:
-                filename_from_profile_photo = os.path.basename(artist.profile_photo)
-                image_full_path = os.path.join(UPLOAD_FOLDER, filename_from_profile_photo)
-                if os.path.exists(image_full_path):
-                    try:
-                        img_left = Inches(3)
-                        img_top = Inches(3)
-                        img_width = Inches(4)
-                        img_height = Inches(4)
-                        slide.shapes.add_picture(image_full_path, img_left, img_top, img_width, img_height)
-                    except Exception as e:
-                        print(f"WARNING: Error loading cover image for PPTX report: {e}")
-
-            # Artist Details Slide
-            slide_layout = prs.slide_layouts[5] # Title and Content layout
-            slide = prs.slides.add_slide(slide_layout)
-
-            title = slide.shapes.title
-            title.text = f"{artist.name} - Detailed Profile"
-            title.text_frame.paragraphs[0].font.size = Pt(24)
-            title.text_frame.paragraphs[0].font.bold = True
-            title.text_frame.paragraphs[0].font.color.rgb = RGBColor(0x36, 0x45, 0x4F) # Deep Navy
-
-            left = Inches(0.5)
-            top = Inches(1.5)
-            width = Inches(6)
-            height = Inches(0.5)
-
-            # Profile Photo on details slide
-            if artist.profile_photo:
-                filename_from_profile_photo = os.path.basename(artist.profile_photo)
-                image_full_path = os.path.join(UPLOAD_FOLDER, filename_from_profile_photo)
-
-                if os.path.exists(image_full_path):
-                    try:
-                        # Get original image dimensions using PIL
-                        with PImage.open(image_full_path) as img_pil:
-                            original_width, original_height = img_pil.size
-
-                        # Define max dimensions for the slide
-                        max_width_ptx = Inches(2.5)
-                        max_height_ptx = Inches(2.5)
-
-                        # Calculate aspect ratio
-                        aspect_ratio = original_height / original_width
-
-                        # Determine new dimensions while maintaining aspect ratio
-                        if original_width > original_height:
-                            new_width_ptx = max_width_ptx
-                            new_height_ptx = max_width_ptx * aspect_ratio
-                        else:
-                            new_height_ptx = max_height_ptx
-                            new_width_ptx = max_height_ptx / aspect_ratio
-                        
-                        # Ensure image fits within max bounds
-                        if new_width_ptx > max_width_ptx:
-                            new_width_ptx = max_width_ptx
-                            new_height_ptx = max_width_ptx * aspect_ratio
-                        if new_height_ptx > max_height_ptx:
-                            new_height_ptx = max_height_ptx
-                            new_width_ptx = max_height_ptx / aspect_ratio
-
-                        img_left = Inches(7)
-                        img_top = Inches(1.5)
-                        slide.shapes.add_picture(image_full_path, img_left, img_top, new_width_ptx, new_height_ptx)
-                    except Exception as e:
-                        txBox = slide.shapes.add_textbox(left, top, width, height)
-                        tf = txBox.text_frame
-                        p = tf.add_paragraph()
-                        p.text = f"[Error loading image: {e}]"
-                else:
-                    txBox = slide.shapes.add_textbox(left, top, width, height)
-                    tf = txBox.text_frame
-                    p = tf.add_paragraph()
-                    p.text = f"[Profile photo not found at {image_full_path}]"
-            
-            # Artist Details
-            txBox = slide.shapes.add_textbox(left, top, width, height)
-            tf = txBox.text_frame
-            tf.word_wrap = True
-
-            def add_paragraph(text_frame, text, level=0, font_size=Pt(11), bold=False, color=RGBColor(0x00, 0x00, 0x00)):
-                p = text_frame.add_paragraph()
-                p.text = text
-                p.level = level
-                p.font.size = font_size
-                p.font.bold = bold
-                p.font.color.rgb = color
-
-            add_paragraph(tf, f"Artist Profile:", level=0, font_size=Pt(14), bold=True, color=RGBColor(0xED, 0x71, 0x04)) # Orange
-            add_paragraph(tf, f"Name: {artist.name}", level=1)
-            add_paragraph(tf, f"Gender: {artist.gender if artist.gender else 'N/A'}", level=1)
-            add_paragraph(tf, f"Nationality: {artist.nationality if artist.nationality else 'N/A'}", level=1)
-            add_paragraph(tf, f"Status: {artist.status if artist.status else 'N/A'}", level=1)
-            add_paragraph(tf, f"Genre: {artist.genre if artist.genre else 'N/A'}", level=1)
-            add_paragraph(tf, f"Category: {artist.category_id if artist.category_id else 'N/A'}", level=1)
-            add_paragraph(tf, f"Height (cm): {artist.height_cm if artist.height_cm else 'N/A'}", level=1)
-            add_paragraph(tf, f"Debut Date: {artist.debut_date.isoformat() if artist.debut_date else 'N/A'}", level=1)
-            add_paragraph(tf, f"Guarantee (KRW): {artist.guarantee_krw if artist.guarantee_krw else 'N/A'}", level=1)
-
-            add_paragraph(tf, f"\nSocial Media Presence:", level=0, font_size=Pt(14), bold=True, color=RGBColor(0xED, 0x71, 0x04)) # Orange
-            add_paragraph(tf, f"Platform: {artist.platform if artist.platform else 'N/A'}", level=1)
-            add_paragraph(tf, f"URL: {artist.social_media_url if artist.social_media_url else 'N/A'}", level=1)
-
-            add_paragraph(tf, f"\nMedia Highlights:", level=0, font_size=Pt(14), bold=True, color=RGBColor(0xED, 0x71, 0x04)) # Orange
-            if recent_news:
-                for news_item in recent_news:
-                    add_paragraph(tf, f"Title: {news_item.title}", level=1, bold=True)
-                    add_paragraph(tf, f"Source: {news_item.source} - {news_item.published_at.strftime('%Y-%m-%d') if news_item.published_at else 'N/A'}", level=1)
-                    add_paragraph(tf, f"Snippet: {news_item.content}", level=1)
-            add_paragraph(tf, f"URL: {news_item.url}", level=1)
-            
-            # Word Cloud and Meta Tags
-            wordcloud_image_path, meta_tags = generate_wordcloud_for_artist(artist.id)
-            if wordcloud_image_path:
-                try:
-                    img_left = Inches(0.5)
-                    img_top = Inches(7)
-                    img_width = Inches(5)
-                    img_height = Inches(2.5)
-                    slide.shapes.add_picture(wordcloud_image_path, img_left, img_top, img_width, img_height)
-                except Exception as e:
-                    add_paragraph(tf, f"[Error loading word cloud image: {e}]", level=1)
-            
-            if meta_tags:
-                add_paragraph(tf, f"Keywords: " + ", ".join(meta_tags), level=1)
-
-        buffer = BytesIO()
-        prs.save(buffer)
-        buffer.seek(0)
-        return send_file(buffer, download_name=f'artists_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pptx', mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation')
-
-    return jsonify({'error': '지원되지 않는 보고서 형식입니다.'}), 400
+    except Exception as e:
+        logger.error(f"Error in generate_artist_report: {e}", exc_info=True)
+        return jsonify({'error': f'보고서 생성 중 시스템 오류가 발생했습니다: {str(e)}'}), 500
 
 @bp.route('/<int:artist_id>', methods=['DELETE'])
 def delete_artist(artist_id):
@@ -776,7 +552,7 @@ def delete_artist(artist_id):
     
     return jsonify({'message': '아티스트가 삭제되었습니다.'}), 200
 
-@bp.route('/upsert-from-wiki', methods=['POST'])
+@bp.route('/upsert-from-wiki', methods=['POST'], strict_slashes=False)
 @require_role('admin')
 def upsert_artist_from_wiki():
     data = request.get_json()

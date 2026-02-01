@@ -23,6 +23,7 @@ interface NewsStats {
   total_news: number
   recent_news: number
   artist_news_counts: Array<{
+    id: number
     artist_name: string
     news_count: number
   }>
@@ -70,7 +71,7 @@ const News = () => {
   const [schedulerStatus, setSchedulerStatus] = useState({ is_running: false, next_run_time: '' })
   const [selectedArtist, setSelectedArtist] = useState('')
   const [selectedSentiment, setSelectedSentiment] = useState('')
-  const [days, setDays] = useState(7)
+  const [days, setDays] = useState(365) // Changed default from 7 to 365
   const [searchQuery, setSearchQuery] = useState('')
   const [showSampleNews, setShowSampleNews] = useState(false) // New state for toggle
   const [showNewsList, setShowNewsList] = useState(true) // New state for news list visibility
@@ -80,6 +81,10 @@ const News = () => {
   const [newsItemVisibility, setNewsItemVisibility] = useState<Map<number, boolean>>(new Map()); // New state for individual news item visibility
 
   useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedArtist, selectedSentiment, days, searchQuery, showSampleNews])
+
+  useEffect(() => {
     fetchNews()
     fetchStats()
     fetchSchedulerStatus()
@@ -87,7 +92,7 @@ const News = () => {
 
   useEffect(() => {
     if (stats && selectedArtist) {
-      const artistExists = stats.artist_news_counts.some(artist => artist.artist_name === selectedArtist)
+      const artistExists = stats.artist_news_counts.some(artist => String(artist.id) === String(selectedArtist))
       if (!artistExists) {
         setSelectedArtist('')
       }
@@ -108,6 +113,7 @@ const News = () => {
       
       const response = await fetch(`/api/news?${params}`)
       const data = await response.json()
+      console.log('Fetched news data:', data); // Added log
       const fetchedNews = data.news || []
 
       setNews(fetchedNews)

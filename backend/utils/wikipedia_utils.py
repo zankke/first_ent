@@ -6,110 +6,216 @@ import re
 import logging
 
 logger = logging.getLogger(__name__)
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Keywords for filtering disambiguation pages
+logger = logging.getLogger(__name__)
 
 # Keywords for filtering disambiguation pages
 ENTERTAINMENT_KEYWORDS_KO = ['배우', '가수', '모델', '방송인', '아이돌', '멤버', '그룹', '엔터테인먼트', '연기자', '예술가', '뮤지컬', '아나운서', '코메디언', '인플루언서']
-EXCLUDE_KEYWORDS_KO = ['정치인', '기업인',  '감독', '선수', '학자', '교수', ] # '축구 선수', '야구 선수', '운동선수', '만화가' 
+EXCLUDE_KEYWORDS_KO = ['정치인', '기업인', '감독', '선수', '학자', '교수']
 
-ENTERTAINMENT_KEYWORDS_EN = ['actor', 'singer', 'model', 'entertainer', 'idol', 'member', 'group', 'actress', 'artist', 'musical']
-EXCLUDE_KEYWORDS_EN = ['politician', 'footballer', 'baseball player', 'businessman', 'executive', 'announcer', 'director', 'player', 'scholar', 'professor', 'athlete', 'cartoonist']
+ENTERTAINMENT_KEYWORDS_EN = ['actor', 'singer', 'model', 'broadcaster', 'idol', 'member', 'group', 'entertainment', 'actor', 'artist', 'musical', 'announcer', 'comedian', 'influencer']
+EXCLUDE_KEYWORDS_EN = ['politician', 'businessman', 'director', 'player', 'scholar', 'professor']
+
+import wikipediaapi
+import requests
+from datetime import datetime
+import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Keywords for filtering disambiguation pages
+ENTERTAINMENT_KEYWORDS_KO = ['배우', '가수', '모델', '방송인', '아이돌', '멤버', '그룹', '엔터테인먼트', '연기자', '예술가', '뮤지컬', '아나운서', '코메디언', '인플루언서']
+EXCLUDE_KEYWORDS_KO = ['정치인', '기업인', '감독', '선수', '학자', '교수']
+
+ENTERTAINMENT_KEYWORDS_EN = ['actor', 'singer', 'model', 'broadcaster', 'idol', 'member', 'group', 'entertainment', 'actor', 'artist', 'musical', 'announcer', 'comedian', 'influencer']
+EXCLUDE_KEYWORDS_EN = ['politician', 'businessman', 'director', 'player', 'scholar', 'professor']
+
+def get_raw_wikitext(title, lang='ko'):
+    """Fetches raw wikitext using MediaWiki API."""
+    url = f"https://{lang}.wikipedia.org/w/api.php"
+    params = {
+        "action": "parse",
+        "page": title,
+        "prop": "wikitext",
+        "format": "json",
+        "redirects": 1
+    }
+    headers = {
+        "User-Agent": "theProjectCompanyArtistManagement/1.0 (contact@example.com)"
+    }
+    try:
+        response = requests.get(url, params=params, headers=headers)
+        data = response.json()
+        if "parse" in data and "wikitext" in data["parse"]:
+            return data["parse"]["wikitext"]["*"]
+    except Exception as e:
+        logger.error(f"Error fetching wikitext: {e}")
+    return None
 
 def _extract_artist_details(page, artist_name, used_wiki_instance) -> dict:
     """
-    Extracts artist details from a given WikipediaPage object.
+    Extracts artist details using both wikipediaapi (for summary) and raw wikitext (for infobox).
     """
-    artist_info = {}
+    search_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    artist_info = {
+        'name': artist_name,
+        'eng_name': None,
+        'birth_date': None,
+        'height_cm': None,
+        'debut_date': None,
+        'debut_title': None,
+        'genre': None,
+        'current_agency_name': None,
+        'nationality': None,
+        'is_korean': False,
+        'gender': 'NA',
+        'recent_activity_name': None,
+        'recent_activity_category': None,
+        'wiki_summary': page.summary,
+        'sources': [{
+            'title': f"{page.title} (Wikipedia)", 
+            'uri': page.fullurl,
+            'source': 'wikipedia.org',
+            'search_date': search_date,
+            'thumbnail': 'https://www.google.com/s2/favicons?domain=wikipedia.org&sz=64'
+        }]
+    }
     
-    # Extract summary
-    artist_info['wiki_summary'] = page.summary
+    lang = used_wiki_instance.language
+    wikitext = get_raw_wikitext(page.title, lang)
 
-    # Extract specific fields from page content
-    text = page.text
+    # Extract some external links as additional sources if available
+    ext_links = re.findall(r'\[(https?://[^\s\]]+)\s+([^\]]+)\]', wikitext or "")
+    for link_uri, link_title in ext_links[:5]: # Take top 5
+        domain = link_uri.split('//')[-1].split('/')[0].replace('www.', '')
+        artist_info['sources'].append({
+            'title': link_title, 
+            'uri': link_uri,
+            'source': domain,
+            'search_date': search_date,
+            'thumbnail': f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
+        })
+    
+    if not wikitext:
+        logger.warning(f"Could not retrieve wikitext for {page.title}")
+        return artist_info
 
-    # Helper to extract a single line value
-    def extract_field(pattern):
-        match = re.search(pattern, text, re.IGNORECASE)
+    def clean_val(val):
+        if not val: return None
+        # Remove [[links]]
+        val = re.sub(r'\[\[(?:[^|\]]*\|)?([^\]]+)\]\]', r'\1', val)
+        # Remove {{templates}}
+        val = re.sub(r'\{\{[^}]+\}\}', '', val)
+        # Remove <ref> tags
+        val = re.sub(r'<ref[^>]*>.*?</ref>', '', val, flags=re.DOTALL)
+        val = re.sub(r'<[^>]+>', '', val)
+        return val.strip()
+
+    # 1. English Name
+    eng_match = re.search(r'\|\s*(?:영어 이름|English name|영어)\s*=\s*(.*?)\n', wikitext, re.IGNORECASE)
+    if eng_match:
+        artist_info['eng_name'] = clean_val(eng_match.group(1))
+    
+    if not artist_info['eng_name']:
+        match = re.search(r'\(([a-zA-Z\s,]+)\)', artist_info['wiki_summary'])
         if match:
-            return match.group(1).strip()
-        return None
+            artist_info['eng_name'] = match.group(1).split(',')[0].strip()
 
-    # Name and English Name (assuming primary search is Korean name)
-    artist_info['name'] = artist_name
-    eng_name_match = re.search(r'영어 이름\s*[:=]\s*(.*?)\n', text)
-    if eng_name_match:
-        artist_info['eng_name'] = eng_name_match.group(1).strip()
+    # 2. Birth Date
+    birth_template = re.search(r'\{\{(?:출생일|birth date).*?\|(\d{4})\|(\d{1,2})\|(\d{1,2})', wikitext)
+    if birth_template:
+        artist_info['birth_date'] = f"{birth_template.group(1)}-{int(birth_template.group(2)):02d}-{int(birth_template.group(3)):02d}"
     else:
-        # Attempt to find English name in parentheses at the beginning of summary
-        eng_name_paren_match = re.search(r'^(.*?)\((.*?)\)', artist_info['wiki_summary'])
-        if eng_name_paren_match:
-            artist_info['eng_name'] = eng_name_paren_match.group(2).strip()
+        birth_match = re.search(r'\|\s*(?:출생일|출생|birth_date)\s*=\s*(.*?)\n', wikitext)
+        if birth_match:
+            date_part = re.search(r'(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일', birth_match.group(1))
+            if date_part:
+                artist_info['birth_date'] = f"{date_part.group(1)}-{int(date_part.group(2)):02d}-{int(date_part.group(3)):02d}"
+
+    # 3. Debut Date
+    debut_match = re.search(r'\|\s*(?:데뷔|debut|활동 시작|활동 시작일)\s*=\s*(.*?)\n', wikitext, re.IGNORECASE)
+    if debut_match:
+        val = debut_match.group(1)
+        date_part = re.search(r'(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일', val)
+        if date_part:
+            artist_info['debut_date'] = f"{date_part.group(1)}-{int(date_part.group(2)):02d}-{int(date_part.group(3)):02d}"
         else:
-            # Fallback to English Wikipedia title if available and different
-            if used_wiki_instance.language == 'en' and artist_name.lower() != page.title.lower():
-                artist_info['eng_name'] = page.title
+            date_part_alt = re.search(r'(\d{4})\.(\d{1,2})\.(\d{1,2})', val)
+            if date_part_alt:
+                artist_info['debut_date'] = f"{date_part_alt.group(1)}-{int(date_part_alt.group(2)):02d}-{int(date_part_alt.group(3)):02d}"
+            else:
+                year_part = re.search(r'(\d{4})년', val)
+                if year_part:
+                    artist_info['debut_date'] = f"{year_part.group(1)}-01-01"
 
-    # Birth Date
-    birth_date_str = extract_field(r'출생일\s*[:=]\s*(\d{4}년\s*\d{1,2}월\s*\d{1,2}일)')
-    if birth_date_str:
-        try:
-            birth_date_str = birth_date_str.replace('년', '-').replace('월', '-').replace('일', '').strip()
-            artist_info['birth_date'] = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            artist_info['birth_date'] = None
-    
-    # Height
-    height_cm_str = extract_field(r'신체\s*[:=].*?(\d{2,3})cm')
-    if height_cm_str:
-        artist_info['height_cm'] = int(height_cm_str)
+    # 4. Height
+    height_match = re.search(r'\|\s*(?:신체|키|height|size)\s*=\s*(.*?)\n', wikitext, re.IGNORECASE)
+    if height_match:
+        h_val = re.search(r'(\d{3}(?:\.\d+)?)', height_match.group(1))
+        if h_val:
+            artist_info['height_cm'] = int(float(h_val.group(1)))
 
-    # Debut Date
-    debut_date_str = extract_field(r'데뷔\s*[:=]\s*(\d{4}년\s*\d{1,2}월\s*\d{1,2}일)')
-    if debut_date_str:
-        try:
-            debut_date_str = debut_date_str.replace('년', '-').replace('월', '-').replace('일', '').strip()
-            artist_info['debut_date'] = datetime.strptime(debut_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            artist_info['debut_date'] = None
+    # 5. Agency
+    agency_match = re.search(r'\|\s*(?:소속사|agent|label|agency)\s*=\s*(.*?)\n', wikitext, re.IGNORECASE)
+    if agency_match:
+        artist_info['current_agency_name'] = clean_val(agency_match.group(1))
 
-    # Debut Title
-    debut_title_str = extract_field(r'데뷔곡\s*[:=]\s*(.*?)\n')
-    if debut_title_str:
-        artist_info['debut_title'] = debut_title_str
+    # 6. Genre
+    genre_match = re.search(r'\|\s*(?:장르|genre|style)\s*=\s*(.*?)\n', wikitext, re.IGNORECASE)
+    if genre_match:
+        artist_info['genre'] = clean_val(genre_match.group(1))
 
-    # Genre
-    genre_str = extract_field(r'장르\s*[:=]\s*(.*?)\n')
-    if genre_str:
-        artist_info['genre'] = genre_str
-
-    # Current Agency Name
-    agency_str = extract_field(r'소속사\s*[:=]\s*(.*?)\n')
-    if agency_str:
-        artist_info['current_agency_name'] = agency_str
-
-    # Nationality
-    nationality_str = extract_field(r'국적\s*[:=]\s*(.*?)\n')
-    if nationality_str:
-        artist_info['nationality'] = nationality_str
-        artist_info['is_korean'] = ('대한민국' in nationality_str or '한국' in nationality_str)
+    # 7. Nationality
+    nat_match = re.search(r'\|\s*(?:국적|nationality|country)\s*=\s*(.*?)\n', wikitext, re.IGNORECASE)
+    if nat_match:
+        nat = clean_val(nat_match.group(1))
+        artist_info['nationality'] = nat
+        artist_info['is_korean'] = ('대한민국' in nat or '한국' in nat)
     else:
-        # Assume Korean if not explicitly stated and using Korean Wikipedia
-        if used_wiki_instance.language == 'ko':
+        if lang == 'ko':
             artist_info['is_korean'] = True
+            artist_info['nationality'] = '대한민국'
 
-    # Gender
-    gender_str = extract_field(r'성별\s*[:=]\s*(.*?)\n')
-    if gender_str:
-        if '여성' in gender_str or '여자' in gender_str:
-            artist_info['gender'] = 'WOMAN'
-        elif '남성' in gender_str or '남자' in gender_str:
-            artist_info['gender'] = 'MEN'
-        else:
-            artist_info['gender'] = 'NA' # Not Applicable/Unknown
+    # 8. Gender
+    cats = "".join(page.categories.keys())
+    if '여자' in cats or '여성' in cats or 'Female' in cats:
+        artist_info['gender'] = 'WOMAN'
+    elif '남자' in cats or '남성' in cats or 'Male' in cats:
+        artist_info['gender'] = 'MEN'
 
-    artist_info['recent_activity_category'] = None
-    artist_info['recent_activity_name'] = None
+    # 9. Recent Activity
+    activity_match = re.search(r'\|\s*(?:최근 활동|주요 작품|최근작|활동|recent activity)\s*=\s*(.*?)\n', wikitext, re.IGNORECASE)
+    if activity_match:
+        artist_info['recent_activity_name'] = clean_val(activity_match.group(1))
+    
+    if not artist_info['recent_activity_name']:
+        # Try to find recent works from categories or summary
+        if '배우' in cats or '영화' in cats or 'Actor' in cats:
+            artist_info['recent_activity_category'] = '드라마/영화'
+        elif '가수' in cats or 'Singer' in cats or 'Idol' in cats:
+            artist_info['recent_activity_category'] = '음악'
 
     return artist_info
+
+    return artist_info
+
+def _is_disambiguation(page) -> bool:
+    """
+    Helper function to check if a page is a disambiguation page.
+    Wikipedia-API v0.8.1 removed is_disambiguation attribute.
+    """
+    disambig_categories = [
+        '분류:모든 동음이의어 문서', 
+        '분류:동음이의어 문서',
+        'Category:All disambiguation pages',
+        'Category:Disambiguation pages'
+    ]
+    return any(cat in page.categories for cat in disambig_categories)
 
 def get_artist_info_from_wikipedia(artist_name: str) -> dict:
     """
@@ -125,7 +231,7 @@ def get_artist_info_from_wikipedia(artist_name: str) -> dict:
     wiki_wiki_ko = wikipediaapi.Wikipedia(
         language='ko',
         extract_format=wikipediaapi.ExtractFormat.WIKI,
-        user_agent='FirstEnt-Artist-Management-Framework/1.0 (contact@example.com)' # Added user_agent
+        user_agent='theProjectCompany-Artist-Management-Framework/1.0 (contact@example.com)' # Added user_agent
     )
 
     page_py = wiki_wiki_ko.page(artist_name)
@@ -136,7 +242,7 @@ def get_artist_info_from_wikipedia(artist_name: str) -> dict:
         wiki_wiki_en = wikipediaapi.Wikipedia(
             language='en', 
             extract_format=wikipediaapi.ExtractFormat.WIKI,
-            user_agent='FirstEnt-Artist-Management-Framework/1.0 (contact@example.com)' # Added user_agent
+            user_agent='theProjectCompany-Artist-Management-Framework/1.0 (contact@example.com)' # Added user_agent
         )
         page_py = wiki_wiki_en.page(artist_name)
         used_wiki_instance = wiki_wiki_en # Update to English instance if found there
@@ -144,13 +250,13 @@ def get_artist_info_from_wikipedia(artist_name: str) -> dict:
             return {} # Artist not found in both languages
 
     # --- Disambiguation handling ---
-    if page_py.is_disambiguation:
+    if _is_disambiguation(page_py):
         logger.info(f"Disambiguation page found for {artist_name}. Analyzing links...")
         
         candidates = []
         for title in page_py.links.keys():
             candidate_page = used_wiki_instance.page(title)
-            if candidate_page.exists() and not candidate_page.is_disambiguation:
+            if candidate_page.exists() and not _is_disambiguation(candidate_page):
                 summary = candidate_page.summary.lower()
                 text = candidate_page.text.lower()
                 

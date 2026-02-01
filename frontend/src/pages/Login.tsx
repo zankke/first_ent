@@ -42,11 +42,19 @@ const Login: React.FC = () => {
 
   return (
     <div className="flex-1 flex items-center justify-center p-4">
-      <Card className="w-[350px] rounded-2xl shadow-lg">
+      <Card className="w-[500px] rounded-2xl shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-foreground">FAMS v1.0</CardTitle>
+          <CardTitle className="text-3xl font-bold text-foreground flex items-center justify-center gap-2">
+            <span>
+              <svg width="28" height="28" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="inline-block text-primary" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" fill="currentColor"/>
+                <path fillRule="evenodd" clipRule="evenodd" d="M6.75 7V5.75A3.25 3.25 0 0 1 13.25 5.75V7h.5A1.75 1.75 0 0 1 15.5 8.75v5.5A1.75 1.75 0 0 1 13.75 16H6.25A1.75 1.75 0 0 1 4.5 14.25v-5.5A1.75 1.75 0 0 1 6.25 7h.5Zm1.5 0h3.5V5.75a1.75 1.75 0 1 0-3.5 0V7Zm5.5 1.75a.25.25 0 0 0-.25-.25h-9a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h7.5c.138 0 .25-.112.25-.25v-5.5Z" fill="currentColor"/>
+              </svg>
+            </span>
+            <span>TAMS v1.0</span>
+          </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Login to your FAMS v1.0 account
+            [theProjectCompany] Artist Management System v1.0
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -57,7 +65,7 @@ const Login: React.FC = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="admin@theprojectcompany.kr"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

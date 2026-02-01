@@ -15,7 +15,7 @@ matplotlib
 mysql-connector-python==8.2.0    # MySQL 커넥터 (대체 옵션)
 pdf2image
 Pillow
-pydantic==2.5.3              # 데이터 검증
+pydantic>=2.10.0              # 데이터 검증
 PyJWT                        # Supabase 토큰 검증용
 PyMySQL
 python-dotenv==1.0.0         # 환경변수 관리
@@ -39,5 +39,7 @@ wordcloud
 wikipedia
 wikipedia-api # Added for Wikipedia API interaction
 google-search-results
+google-generativeai
 urllib3<2
 perplexityai
+python-pptx

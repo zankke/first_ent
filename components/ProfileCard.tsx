@@ -19,7 +19,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile }) => {
     { label: 'Agency', value: profile.current_agency_name },
     { label: 'Height', value: profile.height_cm ? `${profile.height_cm} cm` : 'N/A' },
     { label: 'Gender', value: profile.gender },
-    { label: 'Status', value: profile.status },
+    { label: 'Status', value: profile.status ?? 'ACTIVE'},
     { label: 'Recent Drama/Movie', value: profile.recent_activity_name },
     { label: 'Recent Activity Category', value: profile.recent_activity_category },
   ];

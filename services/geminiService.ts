@@ -86,11 +86,12 @@ export const searchArtist = async (artistName: string, isUpdate: boolean = false
   
   const systemPrompt = `You are a high-speed Data Assistant. 
   Target: "${artistName}". 
-  1. Use Google Search to find current Korean celebrity info. 
+  1. Use Google Search & wikipedia to find current Korean celebrity info. 
   2. Map info to the provided SQL schema: ${ARTIST_SCHEMA_DEF}.
   3. Generate a SQL ${isUpdate ? 'UPDATE' : 'INSERT'} query and a brief Python script.
   4. If multiple celebrities share this name, pick the most famous K-pop/K-drama star.
-  5. Return JSON only. Be fast.`;
+  5. Set the artist's default 'status' field to 'ACTIVE' unless information suggests otherwise.
+  6. Return JSON only. Be fast.`;
 
   try {
     const response = await ai.models.generateContent({

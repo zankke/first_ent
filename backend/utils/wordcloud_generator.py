@@ -1,55 +1,89 @@
 import os
+import base64
+from io import BytesIO
 from wordcloud import WordCloud
+import matplotlib
+matplotlib.use('Agg') # Headless backend
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.colors import LinearSegmentedColormap
 from collections import Counter
-from backend.app import db
-from backend.models import News
+import numpy as np
+import re
 
-def generate_wordcloud_for_artist(artist_id: int, num_words: int = 50, output_dir: str = './temp') -> (str, list):
-    """Fetches news content for an artist, generates a word cloud image, and extracts meta tags.
+def get_theProjectCompany_colormap():
+    """Returns a custom colormap based on theProjectCompany brand colors (Orange and Navy/Slate)."""
+    colors = [
+        "#0f172a", # Slate 900
+        "#1e293b", # Slate 800
+        "#334155", # Slate 700
+        "#ED7104", # Primary Orange
+        "#f97316", # Orange 500
+        "#fb923c"  # Orange 400
+    ]
+    return LinearSegmentedColormap.from_list("theProjectCompany", colors, N=256)
 
-    Args:
-        artist_id: The ID of the artist.
-        num_words: The maximum number of words to include in the word cloud and meta tags.
-        output_dir: Directory to save the word cloud image.
+def generate_wordcloud_from_text(text_content: str, num_words: int = 100) -> (str, list):
+    """Generates a word cloud from text string and returns base64 image + keywords."""
+    if not text_content or len(text_content.strip()) < 10:
+        return None, []
+
+    # Simple cleaning: remove special chars, keep Korean and Alphanumeric
+    cleaned_text = re.sub(r'[^가-힣a-zA-Z0-9\s]', '', text_content)
+    
+    # Filter out very short words (likely particles in Korean or noise)
+    words = [w for w in cleaned_text.split() if len(w) > 1]
+    if not words:
+        return None, []
+    
+    word_freq = Counter(words)
+    
+    # Font path for Korean support
+    font_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'fonts', 'NanumGothic-Bold.ttf')
+    if not os.path.exists(font_path):
+        # Fallback if specific font is missing
+        font_path = None
+
+    # Generate WordCloud
+    wc = WordCloud(
+        width=1200,
+        height=600,
+        background_color='white',
+        font_path=font_path,
+        colormap=get_theProjectCompany_colormap(),
+        max_words=num_words,
+        prefer_horizontal=0.7,
+        relative_scaling=0.5,
+        scale=2
+    ).generate_from_frequencies(word_freq)
+
+    # Convert to Base64
+    img_buffer = BytesIO()
+    # We can use wc.to_image() directly without matplotlib figure overhead for simple image
+    wc.to_image().save(img_buffer, format='PNG')
+    img_str = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+    base64_data = f"data:image/png;base64,{img_str}"
+
+    meta_tags = [word for word, count in word_freq.most_common(20)]
+
+    return base64_data, meta_tags
+
+def generate_wordcloud_for_artist(artist_id: int, num_words: int = 100) -> (str, list):
+    """Fetches news content for an artist, generates a word cloud, and returns base64 image + keywords.
 
     Returns:
         A tuple containing:
-        - The absolute path to the generated word cloud image.
+        - Base64 encoded string of the word cloud image (data:image/png;base64,...)
         - A list of prominent meta tags (top keywords).
     """
-    news_content = ""
+    from backend.models import News
+    
     news_items = News.query.filter_by(artist_id=artist_id).all()
-
     if not news_items:
         return None, []
 
-    for news in news_items:
-        if news.content:
-            news_content += news.content + " "
-
-    if not news_content:
-        return None, []
-
-    # Basic text cleaning (can be expanded with more sophisticated NLP if needed)
-    cleaned_text = ' '.join(word.lower() for word in news_content.split() if word.isalnum())
-
-    # Generate word cloud
-    font_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'fonts', 'NanumGothic-Regular.ttf')
-    wordcloud = WordCloud(width=800, height=400, background_color='white', font_path=font_path).generate(cleaned_text)
-    
-    # Save word cloud image
-    os.makedirs(output_dir, exist_ok=True)
-    image_filename = f"wordcloud_{artist_id}.png"
-    image_path = os.path.join(output_dir, image_filename)
-    wordcloud.to_file(image_path)
-
-    # Extract meta tags (top keywords)
-    words = cleaned_text.split()
-    word_counts = Counter(words)
-    meta_tags = [word for word, count in word_counts.most_common(num_words)]
-
-    return os.path.abspath(image_path), meta_tags
+    text_content = " ".join([n.content for n in news_items if n.content])
+    return generate_wordcloud_from_text(text_content, num_words)
 
 if __name__ == '__main__':
     # This part is for testing the word cloud generator directly

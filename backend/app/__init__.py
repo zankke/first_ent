@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
 
-load_dotenv()
+load_dotenv(override=True)
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -18,6 +18,11 @@ def create_app():
     def serve_image(filename):
         images_dir = os.path.join(app.root_path, '..', 'assets', 'images')
         return send_from_directory(images_dir, filename)
+
+    @app.route('/fonts/<path:filename>')
+    def serve_font(filename):
+        fonts_dir = os.path.join(app.root_path, '..', 'fonts')
+        return send_from_directory(fonts_dir, filename)
 
 
     # 설정
@@ -63,6 +68,16 @@ def create_app():
     app.register_blueprint(dashboard.bp, url_prefix='/api/dashboard')
     app.register_blueprint(activities.bp, url_prefix='/api/activities')
     app.register_blueprint(instagram.bp, url_prefix='/api/instagram')
+
+    @app.route('/debug/routes')
+    def list_routes():
+        import urllib
+        output = []
+        for rule in app.url_map.iter_rules():
+            methods = ','.join(rule.methods)
+            line = urllib.parse.unquote(f"{rule.endpoint:50s} {methods:20s} {rule}")
+            output.append(line)
+        return "<br>".join(sorted(output))
 
     # 스케줄러 초기화
     # news_scheduler.init_app(app)

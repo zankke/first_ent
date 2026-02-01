@@ -2,22 +2,31 @@ from flask import Blueprint, request, jsonify
 from ..app import db
 from backend.models import Board, Account
 
+print("DEBUG: boards.py module imported!")
+
 bp = Blueprint('boards', __name__)
 
-@bp.route('/', methods=['GET'])
+@bp.route('', methods=['GET'], strict_slashes=False)
 def get_boards():
     """모든 게시글 조회"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     board_type = request.args.get('board_type')
-    is_published = request.args.get('is_published', type=bool)
+    is_published = request.args.get('is_published')
+    search_query = request.args.get('query')
     
     query = Board.query
     
     if board_type:
         query = query.filter(Board.board_type == board_type)
     if is_published is not None:
-        query = query.filter(Board.is_published == is_published)
+        is_published_bool = is_published.lower() == 'true'
+        query = query.filter(Board.is_published == is_published_bool)
+    if search_query:
+        query = query.filter(db.or_(
+            Board.title.ilike(f'%{search_query}%'),
+            Board.content.ilike(f'%{search_query}%')
+        ))
     
     boards = query.order_by(Board.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
@@ -30,7 +39,7 @@ def get_boards():
         'current_page': page
     })
 
-@bp.route('/<int:board_id>', methods=['GET'])
+@bp.route('/<int:board_id>', methods=['GET'], strict_slashes=False)
 def get_board(board_id):
     """특정 게시글 조회"""
     board = Board.query.get_or_404(board_id)
@@ -41,7 +50,7 @@ def get_board(board_id):
     
     return jsonify(board.to_dict())
 
-@bp.route('/', methods=['POST'])
+@bp.route('', methods=['POST'], strict_slashes=False)
 def create_board():
     """새 게시글 생성"""
     data = request.get_json()
@@ -62,7 +71,7 @@ def create_board():
     
     return jsonify(board.to_dict()), 201
 
-@bp.route('/<int:board_id>', methods=['PUT'])
+@bp.route('/<int:board_id>', methods=['PUT'], strict_slashes=False)
 def update_board(board_id):
     """게시글 수정"""
     board = Board.query.get_or_404(board_id)
@@ -77,7 +86,7 @@ def update_board(board_id):
     
     return jsonify(board.to_dict())
 
-@bp.route('/<int:board_id>', methods=['DELETE'])
+@bp.route('/<int:board_id>', methods=['DELETE'], strict_slashes=False)
 def delete_board(board_id):
     """게시글 삭제"""
     board = Board.query.get_or_404(board_id)

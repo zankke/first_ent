@@ -76,36 +76,37 @@ const App: React.FC = () => {
 
         {/* Results Section */}
         {result && (
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in-up">
-            
-            {/* Left Col: Profile & Sources */}
-            <div className="space-y-6">
+          <section className="flex flex-col gap-8 animate-fade-in-up">
+
+            {/* Profile */}
+            <div>
               <ProfileCard profile={result.profile} />
-              
-              {result.sources.length > 0 && (
-                <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-                  <h4 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">Sources Found</h4>
-                  <ul className="space-y-2">
-                    {result.sources.map((source, idx) => (
-                      <li key={idx}>
-                        <a 
-                          href={source.uri} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="text-sm text-blue-400 hover:text-blue-300 hover:underline flex items-center truncate"
-                        >
-                          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 flex-shrink-0"></span>
-                          {source.title || source.uri}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
 
-            {/* Right Col: Code Output */}
-            <div className="h-[600px] lg:h-auto">
+            {/* Sources */}
+            {result.sources.length > 0 && (
+              <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+                <h4 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">Sources Found</h4>
+                <ul className="space-y-2">
+                  {result.sources.map((source, idx) => (
+                    <li key={idx}>
+                      <a 
+                        href={source.uri} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-sm text-blue-400 hover:text-blue-300 hover:underline flex items-center truncate"
+                      >
+                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 flex-shrink-0"></span>
+                        {source.title || source.uri}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Code Output */}
+            <div>
               <CodeViewer sqlQuery={result.sqlQuery} pythonScript={result.pythonScript} />
             </div>
 
