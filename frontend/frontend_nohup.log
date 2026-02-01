@@ -9,8 +9,9 @@ VITE_SUPABASE_ANON_KEY from process.env: undefined
 --- End Vite Config Debug ---
 Port 3002 is in use, trying another one...
 Port 3003 is in use, trying another one...
+Port 3004 is in use, trying another one...
 
-  VITE v4.5.14  ready in 140 ms
+  VITE v4.5.14  ready in 164 ms
 
-  ➜  Local:   http://localhost:3004/
-  ➜  Network: http://192.168.0.105:3004/
+  ➜  Local:   http://localhost:3005/
+  ➜  Network: http://192.168.0.105:3005/
