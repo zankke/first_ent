@@ -29,7 +29,7 @@ const Signup: React.FC = () => {
       const { error } = await signup(email, password);
       
       if (error) {
-        toast.error(error.message || 'Signup failed. Please try again.');
+        toast.error(error || 'Signup failed. Please try again.');
       } else {
         toast.success('Account created successfully! Please check your email to verify your account.');
         setTimeout(() => {

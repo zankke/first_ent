@@ -1,9 +1,8 @@
-import React, { useContext } from 'react'
+import { useContext } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, 
   Users, 
-  Radio, 
   UserCheck, 
   MessageSquare, 
   Settings,
@@ -74,10 +73,10 @@ const Sidebar = () => {
           {user ? (
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-sm font-bold text-white">{(user.email || 'U').charAt(0).toUpperCase()}</span>
+                <span className="text-sm font-bold text-white">{(user.uemail || 'U').charAt(0).toUpperCase()}</span>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">{user.email || 'User'}</p>
+                <p className="text-sm font-medium text-white">{user.uemail || 'User'}</p>
                 {level ? (
                   <p className="text-xs text-gray-400">
                     {level === 'admin' ? '관리자' : 

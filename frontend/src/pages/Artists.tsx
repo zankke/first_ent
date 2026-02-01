@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Plus, Search, Filter, MoreVertical, Edit, Trash2, Eye } from 'lucide-react'
 import ArtistForm from '../components/ArtistForm'
@@ -24,13 +24,13 @@ interface Artist {
 }
 
 const Artists = () => {
-  const [artists, setArtists] = useState([])
+  const [artists, setArtists] = useState<Artist[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedArtist, setSelectedArtist] = useState(null)
+  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null)
   const [selectedArtistIds, setSelectedArtistIds] = useState<number[]>([])
   const [reportFormat, setReportFormat] = useState<'pdf' | 'pptx'>('pdf')
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterGender, setFilterGender] = useState('')
@@ -40,7 +40,7 @@ const Artists = () => {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [currentPage, setCurrentPage] = useState(1) // New state for current page
   const [totalPages, setTotalPages] = useState(1)     // New state for total pages
-  const [perPage, setPerPage] = useState(10)           // New state for items per page
+  const [perPage] = useState(10)           // New state for items per page
   const [showSelectionMenu, setShowSelectionMenu] = useState(false)
 
   const location = useLocation()
@@ -96,7 +96,7 @@ const Artists = () => {
     setIsModalOpen(true)
   }
 
-  const handleEditArtist = (artist) => {
+  const handleEditArtist = (artist: Artist) => {
     setSelectedArtist(artist)
     setIsModalOpen(true)
   }
@@ -111,7 +111,7 @@ const Artists = () => {
   }
 
   const handleSelectAll = () => {
-    setSelectedArtistIds(artists.map((artist: any) => artist.id));
+    setSelectedArtistIds(artists.map((artist) => artist.id));
     setShowSelectionMenu(false);
   };
 
@@ -176,7 +176,7 @@ const Artists = () => {
     }
   }
 
-  const handleDeleteArtist = async (artistId) => {
+  const handleDeleteArtist = async (artistId: number) => {
     if (window.confirm('Are you sure you want to delete this artist?')) {
       try {
         const response = await fetch(`/api/artists/${artistId}`, {

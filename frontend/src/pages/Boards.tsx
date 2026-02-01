@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react'
-import { Plus, Search, Filter, MoreVertical, Edit, Trash2, Eye, MessageSquare, X, Check } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, MessageSquare, X, Check } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
 import { toast } from 'sonner'
 
@@ -19,7 +19,7 @@ interface BoardPost {
 const Boards = () => {
   const authContext = useContext(AuthContext)
   const session = authContext?.session
-  const user = session?.user
+  const user = authContext?.user
 
   const [boards, setBoards] = useState<BoardPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -108,7 +108,7 @@ const Boards = () => {
       
       const payload = {
         ...currentPost,
-        author_id: user?.id || 1 // Fallback to 1 if not logged in for testing
+        author_id: user?.uqid || 1 // Fallback to 1 if not logged in for testing
       }
 
       const response = await fetch(url, {

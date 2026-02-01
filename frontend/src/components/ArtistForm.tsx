@@ -1,10 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { Instagram, Youtube, Link } from 'lucide-react';
 
-const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
+interface ArtistData {
+  id?: number;
+  name: string;
+  birth_date: string;
+  height_cm: string | number;
+  debut_date: string;
+  genre: string;
+  agency_id: string | number;
+  nationality: string;
+  is_korean: boolean | number;
+  gender: string;
+  status: string;
+  category_id: string | number;
+  platform: string;
+  social_media_url: string;
+  guarantee_krw: string | number;
+  brand_input?: string; // Add brand_input
+  profile_photo?: string;
+}
+
+interface ArtistFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onArtistAdded: () => void;
+  artist: ArtistData | null;
+}
+
+const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }: ArtistFormProps) => {
   const [profilePhotos, setProfilePhotos] = useState<File[] | null>(null);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ArtistData>({
     name: '',
     birth_date: '',
     height_cm: '', // number
@@ -19,6 +46,7 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
     platform: '',
     social_media_url: '',
     guarantee_krw: '', // New field
+    brand_input: '', // Added field
   });
 
   useEffect(() => {
@@ -31,13 +59,14 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
         genre: artist.genre || 'DRAMA',
         agency_id: artist.agency_id || '',
         nationality: artist.nationality || '',
-        is_korean: artist.is_korean === 1,
+        is_korean: artist.is_korean === undefined ? true : Boolean(artist.is_korean), // Handle potential number/boolean mismatch
         gender: artist.gender || 'WOMAN',
         status: artist.status || '',
         category_id: artist.category_id || '',
         platform: artist.platform || '',
         social_media_url: artist.social_media_url || '',
         guarantee_krw: artist.guarantee_krw !== null && artist.guarantee_krw !== undefined ? String(artist.guarantee_krw) : '',
+        brand_input: artist.brand_input || '',
       });
       if (artist.profile_photo) {
         setImagePreviews([artist.profile_photo]);
@@ -58,6 +87,7 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
         platform: '',
         social_media_url: '',
         guarantee_krw: '',
+        brand_input: '',
       });
       setImagePreviews([]);
     }
@@ -68,8 +98,11 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
 
   if (!isOpen) return null;
 
-  const handleChange = (e) => {
-    const { id, name, value, type, checked } = e.target;
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { id, name, value, type } = e.target;
+    // Handle checkbox separately since it's only on HTMLInputElement
+    const checked = (e.target as HTMLInputElement).checked;
+
     if (name === 'status') {
       setFormData((prev) => ({ ...prev, status: value }));
     } else if (name === 'platform') {
@@ -88,7 +121,7 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       setProfilePhotos(files);
@@ -100,19 +133,22 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const data = new FormData();
-    Object.keys(formData).forEach(key => {
+    (Object.keys(formData) as Array<keyof ArtistData>).forEach(key => {
+      // Skip undefined or null values
+      if (formData[key] === undefined || formData[key] === null) return;
+
       if (key === 'is_korean') {
         data.append(key, formData[key] ? '1' : '0');
       } else if (key === 'height_cm') {
-        data.append(key, formData[key] ? parseInt(formData[key], 10).toString() : '');
+        data.append(key, formData[key] ? parseInt(String(formData[key]), 10).toString() : '');
       } else if (key === 'guarantee_krw') {
-        data.append(key, formData[key] !== '' ? parseInt(formData[key], 10).toString() : '');
+        data.append(key, formData[key] !== '' ? parseInt(String(formData[key]), 10).toString() : '');
       } else {
-        data.append(key, formData[key]);
+        data.append(key, String(formData[key]));
       }
     });
 
@@ -122,7 +158,7 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
       }
     }
 
-    const url = artist
+    const url = artist?.id
       ? `/api/artists/${artist.id}`
       : '/api/artists';
     const method = artist ? 'PUT' : 'POST';
@@ -140,7 +176,7 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
 
       onArtistAdded();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       alert(`저장 중 오류 발생: ${error.message}`);
       console.error('Error saving artist:', error);
     }
@@ -205,32 +241,27 @@ const ArtistForm = ({ isOpen, onClose, onArtistAdded, artist }) => {
               <div className="col-span-1 md:col-span-2">
                 <div className="flex items-center space-x-4">
                   <label htmlFor="is_korean_true" className="block text-sm text-gray-300">
-                    <input
-                      id="is_korean_true"
-                      type="radio"
-                      name="is_korean"
-                      value="true"
-                      checked={formData.is_korean}
-                      onChange={() => {
-                        handleChange({ target: { id: 'is_korean', value: true } });
-                        handleChange({ target: { id: 'nationality', value: 'KOREAN' } });
-                      }}
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
-                    />
-                    <span className="ml-2">내국인</span>
-                  </label>
-                  <label htmlFor="is_korean_false" className="block text-sm text-gray-300">
-                    <input
-                      id="is_korean_false"
-                      type="radio"
-                      name="is_korean"
-                      value="false"
-                      checked={!formData.is_korean}
-                      onChange={() => {
-                        handleChange({ target: { id: 'is_korean', value: false } });
-                      }}
-                      className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
-                    />
+                      <input
+                        id="is_korean_true"
+                        type="radio"
+                        name="is_korean"
+                        value="true"
+                        checked={Boolean(formData.is_korean)}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2">내국인</span>
+                    </label>
+                    <label htmlFor="is_korean_false" className="block text-sm text-gray-300">
+                      <input
+                        id="is_korean_false"
+                        type="radio"
+                        name="is_korean"
+                        value="false"
+                        checked={!Boolean(formData.is_korean)}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
+                      />
                     <span className="ml-2">외국인</span>
                   </label>
                 </div>

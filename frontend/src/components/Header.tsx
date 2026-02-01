@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react'
+import { useState, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Search, User, LogOut } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
@@ -61,7 +61,7 @@ const Header = () => {
               <User className="w-4 h-4 text-white" />
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-medium">{authContext.user?.email || 'User'}</span>
+              <span className="text-sm font-medium">{authContext.user?.uemail || 'User'}</span>
               {authContext.level && (
                 <span className="text-xs text-muted-foreground">
                   {authContext.level === 'admin' ? '관리자' : 

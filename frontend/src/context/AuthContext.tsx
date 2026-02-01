@@ -135,12 +135,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
   
-    const signup = async (email: string, password: string) => {
-      // Implement internal signup if needed, for now just a placeholder
-      // For now, no direct signup via frontend for internal users.
-      // Accounts are to be created by admins/managers.
-      return { error: '회원가입은 관리자를 통해서만 가능합니다.' };
-    };
+  const signup = async (_email: string, _password: string) => {
+    // Implement internal signup if needed, for now just a placeholder
+    // For now, no direct signup via frontend for internal users.
+    // Accounts are to be created by admins/managers.
+    return { error: '회원가입은 관리자를 통해서만 가능합니다.' };
+  };
   
     const logout = async () => {
       localStorage.removeItem('jwt_access_token');

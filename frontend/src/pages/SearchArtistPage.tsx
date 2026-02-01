@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import { useState, useContext } from 'react';
 import { 
   Calendar, 
   User, 
@@ -8,7 +8,6 @@ import {
   FileText, 
   Shield, 
   ExternalLink, 
-  Copy, 
   CheckCircle,
   Clock,
   Search
@@ -115,6 +114,7 @@ const SearchArtistPage = () => {
     return (
       <div className="flex flex-col space-y-1">
         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+          <Icon className="w-3 h-3" />
           {label}
         </span>
         <div className="flex items-center gap-3">

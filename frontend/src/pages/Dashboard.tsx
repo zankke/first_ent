@@ -1,10 +1,41 @@
 import React, { useState, useEffect } from 'react'
 import { Users, Radio, TrendingUp, Activity, Instagram, Youtube, Link } from 'lucide-react'
 
+interface DashboardStat {
+  icon: string;
+  color: string;
+  changeType: 'positive' | 'negative';
+  change: string;
+  value: string;
+  title: string;
+}
+
+interface RecentArtist {
+  name: string;
+  profile_photo?: string;
+  channels?: { platform: string; followers: string }[];
+}
+
+interface ChannelPerformance {
+  platform: string;
+  growth: string;
+  posts: number;
+}
+
+interface NewsItem {
+  url: string;
+  thumbnail?: string;
+  title: string;
+  content: string;
+  media_name: string;
+  published_at?: string;
+  crawled_at?: string;
+}
+
 const Dashboard = () => {
-  const [stats, setStats] = useState([])
+  const [stats, setStats] = useState<DashboardStat[]>([])
   const [statsLoading, setStatsLoading] = useState(true)
-  const [statsError, setStatsError] = useState(null)
+  const [statsError, setStatsError] = useState<string | null>(null)
 
   const fetchStats = async () => {
     setStatsLoading(true)
@@ -25,9 +56,9 @@ const Dashboard = () => {
     }
   }
 
-  const [recentArtists, setRecentArtists] = useState([])
+  const [recentArtists, setRecentArtists] = useState<RecentArtist[]>([])
   const [recentArtistsLoading, setRecentArtistsLoading] = useState(true)
-  const [recentArtistsError, setRecentArtistsError] = useState(null)
+  const [recentArtistsError, setRecentArtistsError] = useState<string | null>(null)
 
   const fetchRecentArtists = async () => {
     setRecentArtistsLoading(true)
@@ -48,9 +79,9 @@ const Dashboard = () => {
     }
   }
 
-  const [channelPerformance, setChannelPerformance] = useState([])
+  const [channelPerformance, setChannelPerformance] = useState<ChannelPerformance[]>([])
   const [channelPerformanceLoading, setChannelPerformanceLoading] = useState(true)
-  const [channelPerformanceError, setChannelPerformanceError] = useState(null)
+  const [channelPerformanceError, setChannelPerformanceError] = useState<string | null>(null)
 
   const fetchChannelPerformance = async () => {
     setChannelPerformanceLoading(true)
@@ -71,9 +102,9 @@ const Dashboard = () => {
     }
   }
 
-  const [recentNews, setRecentNews] = useState([])
+  const [recentNews, setRecentNews] = useState<NewsItem[]>([])
   const [recentNewsLoading, setRecentNewsLoading] = useState(true)
-  const [recentNewsError, setRecentNewsError] = useState(null)
+  const [recentNewsError, setRecentNewsError] = useState<string | null>(null)
 
   const fetchRecentNews = async () => {
     setRecentNewsLoading(true)
@@ -122,7 +153,7 @@ const Dashboard = () => {
         {statsLoading && <div className="col-span-full text-center text-gray-400">통계 데이터를 불러오는 중...</div>}
         {statsError && <div className="col-span-full text-center text-red-500">{statsError}</div>}
         {!statsLoading && !statsError && stats.length > 0 && stats.map((stat, index) => {
-          const Icon = iconMap[stat.icon] // Use the icon map
+          const Icon = iconMap[stat.icon as keyof typeof iconMap] // Use the icon map
           return (
             <div key={index} className="glass rounded-2xl p-6">
               <div className="flex items-center justify-between mb-4">

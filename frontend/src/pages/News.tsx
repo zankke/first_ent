@@ -1,5 +1,5 @@
-import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react'
-import { Search, Filter, RefreshCw, ExternalLink, Calendar, User, TrendingUp, Clock, Play, Pause, Eye, EyeOff } from 'lucide-react'
+import { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react'
+import { Search, RefreshCw, ExternalLink, Calendar, User, TrendingUp, Clock, Play, Pause, Eye, EyeOff } from 'lucide-react'
 import Pagination from '../components/Pagination' // Import Pagination component
 
 interface NewsArticle {
@@ -77,7 +77,7 @@ const News = () => {
   const [showNewsList, setShowNewsList] = useState(true) // New state for news list visibility
   const [currentPage, setCurrentPage] = useState(1) // New state for current page
   const [totalPages, setTotalPages] = useState(1)     // New state for total pages
-  const [perPage, setPerPage] = useState(10)           // New state for items per page
+  const [perPage] = useState(10)           // New state for items per page
   const [newsItemVisibility, setNewsItemVisibility] = useState<Map<number, boolean>>(new Map()); // New state for individual news item visibility
 
   useEffect(() => {
@@ -114,7 +114,7 @@ const News = () => {
       const response = await fetch(`/api/news?${params}`)
       const data = await response.json()
       console.log('Fetched news data:', data); // Added log
-      const fetchedNews = data.news || []
+      const fetchedNews: NewsArticle[] = data.news || []
 
       setNews(fetchedNews)
       setNewsItemVisibility(new Map(fetchedNews.map(item => [item.id, true]))); // Initialize all as visible
@@ -206,24 +206,6 @@ const News = () => {
     } catch (error) {
       console.error('스케줄러 제어 오류:', error)
       alert('스케줄러 제어 중 오류가 발생했습니다.')
-    }
-  }
-
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment) {
-      case 'positive': return 'text-green-500 bg-green-500/20'
-      case 'negative': return 'text-red-500 bg-red-500/20'
-      case 'neutral': return 'text-gray-500 bg-gray-500/20'
-      default: return 'text-gray-500 bg-gray-500/20'
-    }
-  }
-
-  const getSentimentLabel = (sentiment: string) => {
-    switch (sentiment) {
-      case 'positive': return '긍정적'
-      case 'negative': return '부정적'
-      case 'neutral': return '중립적'
-      default: return '미분류'
     }
   }
 

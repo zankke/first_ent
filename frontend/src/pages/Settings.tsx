@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Save, Key, Database, Bell, Shield, Globe } from 'lucide-react'
 
 const Settings = () => {

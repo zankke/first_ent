@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Plus, Search, Filter, MoreVertical, Edit, Trash2, RefreshCw, ExternalLink } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Search, Filter, MoreVertical, Edit, RefreshCw, ExternalLink } from 'lucide-react'
 
 const formatNumberToK_M = (num: number | null | undefined): string => {
   if (num === null || num === undefined) {
@@ -30,7 +30,7 @@ const Channels = () => {
         }
         const data = await response.json()
         setChannels(data.channels)
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching channels:', err)
         setError(err.message)
       } finally {
