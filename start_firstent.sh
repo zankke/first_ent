@@ -2,8 +2,8 @@
 
 # theProjectCompany v2: 통합 프로젝트 시작 최적화 스크립트
 # UTF-8 (한글 깨짐 방지)
-export LANG=ko_KR.UTF-8
-export LC_ALL=ko_KR.UTF-8
+# export LANG=ko_KR.UTF-8
+# export LC_ALL=ko_KR.UTF-8
 
 # 프로젝트 루트 기준
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
