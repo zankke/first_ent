@@ -1,3 +1,6 @@
 backend/
-puppeteer_service/
 database/
+puppeteer_service/
+node_modules/
+tmp/
+.DS_Store
