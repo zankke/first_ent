@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
       ],
       proxy: {
         '/api': {
-          target: 'http://localhost:5002', // Flask backend server
+          target: 'http://127.0.0.1:5002', // Flask backend server
           changeOrigin: true,
           logLevel: 'debug', // Add debug logging for proxy
         },

@@ -131,7 +131,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return {}; // No error
       } catch (err: any) {
         console.error('Login failed:', err);
-        return { error: err.response?.data?.error || '로그인 실패' };
+        let errorMessage = '로그인 실패';
+        if (err.response) {
+            if (typeof err.response.data === 'string') {
+                 // If response is HTML (e.g. 404 page), don't show full HTML
+                 errorMessage = `Server Error: ${err.response.status}`;
+            } else if (err.response.data?.error) {
+                if (typeof err.response.data.error === 'string') {
+                    errorMessage = err.response.data.error;
+                } else {
+                    errorMessage = JSON.stringify(err.response.data.error);
+                }
+            } else if (err.message) {
+                errorMessage = err.message;
+            }
+        } else if (err.message) {
+            errorMessage = err.message;
+        }
+        
+        return { error: errorMessage };
       }
     };
   
